@@ -14,7 +14,7 @@ import { useFloatPanelStore } from "@/store/useFloatPanelStore";
 import { useExtensionStore } from "@/store/useExtensionStore";
 
 const FloatPanelApp: React.FC = () => {
-  const { hide, size } = useFloatPanelStore();
+  const { hide } = useFloatPanelStore();
   const { isActive, settings } = useExtensionStore();
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -43,11 +43,6 @@ const FloatPanelApp: React.FC = () => {
           ? "bg-transparent border-none shadow-none"
           : "bg-white border border-gray-200 rounded-lg shadow-lg"
       }`}
-      style={{
-        width: size.width,
-        height: isMinimized ? 40 : size.height,
-        transition: "height 0.3s ease-in-out",
-      }}
     >
       {/* Header */}
       <div

@@ -1,10 +1,7 @@
-// Content script for Chrome extension
 console.log("Content script loaded");
 
-// Declare interact as a global variable (loaded by interact.js script)
 declare const interact: any;
 
-// Check if extension context is valid
 function isExtensionContextValid(): boolean {
   try {
     return !!chrome.runtime?.id;
@@ -33,7 +30,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       break;
 
     case "TOGGLE_FLOAT_PANEL":
-      // This would be handled by the float panel injection
       sendResponse({ success: true });
       break;
 
@@ -52,10 +48,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ error: "Unknown message type" });
   }
 
-  return true; // Keep message channel open for async response
+  return true;
 });
 
-// Inject float panel when needed
 function injectFloatPanel() {
   // Check if extension context is valid
   if (!isExtensionContextValid()) {
@@ -74,26 +69,40 @@ function injectFloatPanel() {
     container.id = "chrome-extension-float-panel-container";
     container.style.cssText = `
       position: fixed;
-      top: 100px;
-      right: 20px;
-      width: 400px;
-      height: 300px;
+      top: 0px;
+      left: 0px;
+      width: 416px;
+      height: 316px;
       z-index: 999999;
+      background-color: #000;
+      border: none;
+      border-radius: 8px;
     `;
+
+    // const containerContent = document.createElement("div");
+    // container.id = "chrome-extension-float-panel-container-content";
+    // containerContent.style.cssText = `
+    //   width: calc(100% - 16px);
+    //   height: calc(100% - 16px);
+    //   border: none;
+    //   border-radius: 8px;
+    //   margin: 8px;
+    // `;
 
     // Create iframe for float panel
     const iframe = document.createElement("iframe");
     iframe.id = "chrome-extension-float-panel";
     iframe.src = chrome.runtime.getURL("src/floatpanel/index.html");
     iframe.style.cssText = `
-      width: 100%;
-      height: 100%;
+      width: calc(100% - 16px);
+      height: calc(100% - 16px);
       border: none;
-      border-radius: 8px;
+      border-radius: 6px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       background: white;
       transition: height 0.3s ease-in-out;
       pointer-events: auto;
+      margin: 8px;
     `;
 
     // Create drag handle overlay for left side of header (where buttons are not)
@@ -101,8 +110,8 @@ function injectFloatPanel() {
     dragHandle.id = "chrome-extension-drag-handle";
     dragHandle.style.cssText = `
       position: absolute;
-      top: 0;
-      left: 0;
+      top: 8px;
+      left: 8px;
       right: 80px;
       height: 40px;
       z-index: 1000000;
@@ -110,12 +119,14 @@ function injectFloatPanel() {
       background: transparent;
     `;
 
-    container.appendChild(iframe);
+    // container.appendChild(iframe);
     container.appendChild(dragHandle);
     document.body.appendChild(container);
 
     // Add drag and resize functionality using interact.js
+    // setupInteract(container);
     setupInteract(container, dragHandle);
+    // setupAlternativeInteract(container, dragHandle);
 
     console.log("Float panel injected successfully");
   } catch (error) {
@@ -123,41 +134,180 @@ function injectFloatPanel() {
   }
 }
 
+// Прості функції для блокування/розблокування iframe
+function blockIframe(container: HTMLElement) {
+  const iframe = container.querySelector(
+    "#chrome-extension-float-panel"
+  ) as HTMLIFrameElement;
+  if (iframe) {
+    iframe.style.pointerEvents = "none";
+  }
+}
+
+function unblockIframe(container: HTMLElement) {
+  const iframe = container.querySelector(
+    "#chrome-extension-float-panel"
+  ) as HTMLIFrameElement;
+  if (iframe) {
+    iframe.style.pointerEvents = "auto";
+  }
+}
+
+// function setupAlternativeInteract(
+//   element: HTMLElement,
+//   dragHandle: HTMLElement
+// ) {
+//   let isDragging = false;
+//   let startX = 0;
+//   let startY = 0;
+//   let startPanelX = 0;
+//   let startPanelY = 0;
+
+//   dragHandle.addEventListener("mousedown", (e) => {
+//     isDragging = true;
+//     startX = e.clientX;
+//     startY = e.clientY;
+
+//     const currentX = parseFloat(element.getAttribute("data-x") || "0");
+//     const currentY = parseFloat(element.getAttribute("data-y") || "0");
+//     startPanelX = currentX;
+//     startPanelY = currentY;
+
+//     // Блокуємо iframe під час перетягування
+//     blockIframe(element);
+
+//     dragHandle.style.cursor = "move";
+//     element.style.userSelect = "none";
+//     document.body.style.userSelect = "none";
+
+//     e.preventDefault();
+//   });
+
+//   document.addEventListener("mousemove", (e) => {
+//     if (!isDragging) return;
+
+//     const deltaX = e.clientX - startX;
+//     const deltaY = e.clientY - startY;
+
+//     const newX = startPanelX + deltaX;
+//     const newY = startPanelY + deltaY;
+
+//     // Get current panel dimensions
+//     const panelRect = element.getBoundingClientRect();
+//     const panelWidth = panelRect.width;
+//     const panelHeight = panelRect.height;
+
+//     // Calculate viewport dimensions
+//     const viewportWidth = window.innerWidth;
+//     const viewportHeight = window.innerHeight;
+
+//     // Calculate bounds
+//     const minX = 0;
+//     const minY = 0;
+//     const maxX = Math.max(0, viewportWidth - panelWidth);
+//     const maxY = Math.max(0, viewportHeight - panelHeight);
+
+//     // Constrain the position
+//     const constrainedX = Math.max(minX, Math.min(newX, maxX));
+//     const constrainedY = Math.max(minY, Math.min(newY, maxY));
+
+//     // Apply the transformation
+//     element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
+//     element.style.right = "auto";
+//     element.style.bottom = "auto";
+
+//     // Store the constrained positions
+//     element.setAttribute("data-x", constrainedX.toString());
+//     element.setAttribute("data-y", constrainedY.toString());
+
+//     e.preventDefault();
+//   });
+
+//   document.addEventListener("mouseup", () => {
+//     if (!isDragging) return;
+
+//     isDragging = false;
+
+//     // Розблоковуємо iframe після перетягування
+//     unblockIframe(element);
+
+//     dragHandle.style.cursor = "move";
+//     element.style.userSelect = "";
+//     document.body.style.userSelect = "";
+//   });
+
+//   // Handle case where mouse leaves the window during drag
+//   document.addEventListener("mouseleave", () => {
+//     if (isDragging) {
+//       isDragging = false;
+
+//       // Розблоковуємо iframe якщо миша покинула вікно
+//       unblockIframe(element);
+
+//       dragHandle.style.cursor = "move";
+//       element.style.userSelect = "";
+//       document.body.style.userSelect = "";
+//     }
+//   });
+// }
+
 // Setup interact.js for drag and resize functionality
 function setupInteract(element: HTMLElement, dragHandle: HTMLElement) {
+  // function setupInteract(element: HTMLElement) {
   // Check if interact.js is available
   if (typeof interact === "undefined") {
     console.error("interact.js is not loaded");
     return;
   }
 
-  // Make element draggable using the drag handle
+  // Fixed draggable move listener with correct boundary calculations
   interact(dragHandle).draggable({
     listeners: {
       start() {
         console.log("Drag start");
+        // Блокуємо iframe під час перетягування
+        blockIframe(element);
       },
       move(event: any) {
         const target = element;
         const x = parseFloat(target.getAttribute("data-x") || "0") + event.dx;
         const y = parseFloat(target.getAttribute("data-y") || "0") + event.dy;
 
+        // Get current panel dimensions
+        const panelRect = target.getBoundingClientRect();
+        const panelWidth = panelRect.width;
+        const panelHeight = panelRect.height;
+
+        // Calculate viewport dimensions
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
         // Keep element within viewport bounds
-        const maxX = window.innerWidth - target.offsetWidth;
-        const maxY = window.innerHeight - target.offsetHeight;
+        // Minimum positions (top-left corner shouldn't go beyond viewport)
+        const minX = 0;
+        const minY = 0;
 
-        const constrainedX = Math.max(0, Math.min(x, maxX));
-        const constrainedY = Math.max(0, Math.min(y, maxY));
+        // Maximum positions (bottom-right corner shouldn't go beyond viewport)
+        const maxX = viewportWidth - panelWidth;
+        const maxY = viewportHeight - panelHeight;
 
+        // Constrain the position
+        const constrainedX = Math.max(minX, Math.min(x, maxX));
+        const constrainedY = Math.max(minY, Math.min(y, maxY));
+
+        // Apply the transformation
         target.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
         target.style.right = "auto";
         target.style.bottom = "auto";
 
+        // Store the constrained positions
         target.setAttribute("data-x", constrainedX.toString());
         target.setAttribute("data-y", constrainedY.toString());
       },
       end() {
         console.log("Drag end");
+        // Розблоковуємо iframe після перетягування
+        unblockIframe(element);
       },
     },
   });
@@ -165,7 +315,13 @@ function setupInteract(element: HTMLElement, dragHandle: HTMLElement) {
   // Make element resizable
   interact(element).resizable({
     edges: { left: true, right: true, bottom: true, top: true },
+    margin: 8,
     listeners: {
+      start(event: any) {
+        console.log("Resize start", event);
+        // Блокуємо iframe під час зміни розміру
+        blockIframe(element);
+      },
       move(event: any) {
         const target = event.target;
         let x = parseFloat(target.getAttribute("data-x") || "0");
@@ -193,11 +349,16 @@ function setupInteract(element: HTMLElement, dragHandle: HTMLElement) {
         target.setAttribute("data-x", constrainedX.toString());
         target.setAttribute("data-y", constrainedY.toString());
       },
+      end(event: any) {
+        console.log("Resize end", event);
+        // Розблоковуємо iframe після зміни розміру
+        unblockIframe(element);
+      },
     },
     modifiers: [
       // Keep element within viewport
       interact.modifiers.restrictSize({
-        min: { width: 200, height: 100 },
+        min: { width: 200 + 16, height: 100 + 16 },
       }),
     ],
   });
@@ -298,8 +459,8 @@ window.addEventListener("message", (event) => {
       "chrome-extension-float-panel-container"
     );
     if (container) {
-      container.style.height = event.data.height + "px";
-      console.log("Float panel resized to:", event.data.height + "px");
+      container.style.height = event.data.height + 16 + "px";
+      console.log("Float panel resized to:", event.data.height + 16 + "px");
     } else {
       console.log("Float panel container not found");
     }
