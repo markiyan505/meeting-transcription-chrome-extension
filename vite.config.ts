@@ -1,7 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { resolve } from "path";
+import path from "path";
 import { viteStaticCopy } from "vite-plugin-static-copy";
+
+// TypeScript declaration for __dirname in ES modules
+declare const __dirname: string;
 
 export default defineConfig({
   plugins: [
@@ -16,11 +19,6 @@ export default defineConfig({
           src: "icons",
           dest: ".",
         },
-        {
-          src: "src/interact.min.js",
-          dest: ".",
-          rename: "interact.js",
-        },
       ],
     }),
   ],
@@ -28,11 +26,11 @@ export default defineConfig({
     outDir: "dist",
     rollupOptions: {
       input: {
-        popup: resolve(__dirname, "src/popup/index.html"),
-        content: resolve(__dirname, "src/content/content.ts"),
-        "content.css": resolve(__dirname, "src/content/content.css"),
-        background: resolve(__dirname, "src/background/background.ts"),
-        floatpanel: resolve(__dirname, "src/floatpanel/index.html"),
+        popup: "./src/popup/index.html",
+        content: "./src/content/content.ts",
+        "content.css": "./src/content/content.css",
+        background: "./src/background/background.ts",
+        floatpanel: "./src/floatpanel/index.html",
       },
       output: {
         entryFileNames: "[name].js",
@@ -47,7 +45,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": resolve(__dirname, "src"),
+      "@": path.resolve(__dirname, "src"),
     },
   },
 });

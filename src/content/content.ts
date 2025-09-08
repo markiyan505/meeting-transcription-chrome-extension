@@ -1,7 +1,5 @@
 console.log("Content script loaded");
 
-declare const interact: any;
-
 function isExtensionContextValid(): boolean {
   try {
     return !!chrome.runtime?.id;
@@ -79,16 +77,6 @@ function injectFloatPanel() {
       border-radius: 8px;
     `;
 
-    // const containerContent = document.createElement("div");
-    // container.id = "chrome-extension-float-panel-container-content";
-    // containerContent.style.cssText = `
-    //   width: calc(100% - 16px);
-    //   height: calc(100% - 16px);
-    //   border: none;
-    //   border-radius: 8px;
-    //   margin: 8px;
-    // `;
-
     // Create iframe for float panel
     const iframe = document.createElement("iframe");
     iframe.id = "chrome-extension-float-panel";
@@ -117,16 +105,24 @@ function injectFloatPanel() {
       z-index: 1000000;
       cursor: move;
       background: transparent;
+      transition: background-color 0.2s ease;
     `;
 
-    // container.appendChild(iframe);
+    // Add hover effect for drag handle
+    dragHandle.addEventListener("mouseenter", () => {
+      dragHandle.style.background = "rgba(59, 130, 246, 0.1)";
+    });
+
+    dragHandle.addEventListener("mouseleave", () => {
+      dragHandle.style.background = "transparent";
+    });
+
+    container.appendChild(iframe);
     container.appendChild(dragHandle);
     document.body.appendChild(container);
 
-    // Add drag and resize functionality using interact.js
-    // setupInteract(container);
-    setupInteract(container, dragHandle);
-    // setupAlternativeInteract(container, dragHandle);
+    // Add custom drag and resize functionality
+    setupCustomInteract(container, dragHandle);
 
     console.log("Float panel injected successfully");
   } catch (error) {
@@ -134,7 +130,7 @@ function injectFloatPanel() {
   }
 }
 
-// Прості функції для блокування/розблокування iframe
+// Функції для блокування/розблокування iframe
 function blockIframe(container: HTMLElement) {
   const iframe = container.querySelector(
     "#chrome-extension-float-panel"
@@ -153,215 +149,311 @@ function unblockIframe(container: HTMLElement) {
   }
 }
 
-// function setupAlternativeInteract(
-//   element: HTMLElement,
-//   dragHandle: HTMLElement
-// ) {
-//   let isDragging = false;
-//   let startX = 0;
-//   let startY = 0;
-//   let startPanelX = 0;
-//   let startPanelY = 0;
+// Custom drag and resize implementation
+function setupCustomInteract(element: HTMLElement, dragHandle: HTMLElement) {
+  // Drag variables
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let elementStartX = 0;
+  let elementStartY = 0;
 
-//   dragHandle.addEventListener("mousedown", (e) => {
-//     isDragging = true;
-//     startX = e.clientX;
-//     startY = e.clientY;
+  // Resize variables
+  let isResizing = false;
+  let resizeHandle = "";
+  let resizeStartX = 0;
+  let resizeStartY = 0;
+  let startWidth = 0;
+  let startHeight = 0;
+  let startLeft = 0;
+  let startTop = 0;
 
-//     const currentX = parseFloat(element.getAttribute("data-x") || "0");
-//     const currentY = parseFloat(element.getAttribute("data-y") || "0");
-//     startPanelX = currentX;
-//     startPanelY = currentY;
+  const minWidth = 216; // 200 + 16 margin
+  const minHeight = 116; // 100 + 16 margin
 
-//     // Блокуємо iframe під час перетягування
-//     blockIframe(element);
+  // Create resize handles
+  const resizeHandles = ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
 
-//     dragHandle.style.cursor = "move";
-//     element.style.userSelect = "none";
-//     document.body.style.userSelect = "none";
+  resizeHandles.forEach((handle) => {
+    const resizeDiv = document.createElement("div");
+    resizeDiv.className = `resize-handle resize-${handle}`;
+    resizeDiv.style.cssText = getResizeHandleStyle(handle);
+    resizeDiv.setAttribute("data-resize", handle);
 
-//     e.preventDefault();
-//   });
+    // Add hover effects with different colors for different handle types
+    resizeDiv.addEventListener("mouseenter", () => {
+      let color = "rgba(59, 130, 246, 0.3)"; // Default blue
+      let borderColor = "rgba(59, 130, 246, 0.6)";
 
-//   document.addEventListener("mousemove", (e) => {
-//     if (!isDragging) return;
+      // Different colors for corner vs edge handles
+      if (["nw", "ne", "sw", "se"].includes(handle)) {
+        // Corner handles - green
+        color = "rgba(34, 197, 94, 0.3)";
+        borderColor = "rgba(34, 197, 94, 0.6)";
+      } else {
+        // Edge handles - blue
+        color = "rgba(59, 130, 246, 0.3)";
+        borderColor = "rgba(59, 130, 246, 0.6)";
+      }
 
-//     const deltaX = e.clientX - startX;
-//     const deltaY = e.clientY - startY;
+      resizeDiv.style.background = color;
+      resizeDiv.style.border = `1px solid ${borderColor}`;
+    });
 
-//     const newX = startPanelX + deltaX;
-//     const newY = startPanelY + deltaY;
+    resizeDiv.addEventListener("mouseleave", () => {
+      resizeDiv.style.background = "transparent";
+      resizeDiv.style.border = "none";
+    });
 
-//     // Get current panel dimensions
-//     const panelRect = element.getBoundingClientRect();
-//     const panelWidth = panelRect.width;
-//     const panelHeight = panelRect.height;
+    element.appendChild(resizeDiv);
+  });
 
-//     // Calculate viewport dimensions
-//     const viewportWidth = window.innerWidth;
-//     const viewportHeight = window.innerHeight;
+  // Drag functionality
+  dragHandle.addEventListener("mousedown", (e) => {
+    if (isResizing) return;
 
-//     // Calculate bounds
-//     const minX = 0;
-//     const minY = 0;
-//     const maxX = Math.max(0, viewportWidth - panelWidth);
-//     const maxY = Math.max(0, viewportHeight - panelHeight);
+    isDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
 
-//     // Constrain the position
-//     const constrainedX = Math.max(minX, Math.min(newX, maxX));
-//     const constrainedY = Math.max(minY, Math.min(newY, maxY));
+    elementStartX = parseFloat(element.getAttribute("data-x") || "0");
+    elementStartY = parseFloat(element.getAttribute("data-y") || "0");
 
-//     // Apply the transformation
-//     element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
-//     element.style.right = "auto";
-//     element.style.bottom = "auto";
+    blockIframe(element);
+    dragHandle.style.cursor = "grabbing";
+    element.style.userSelect = "none";
+    document.body.style.userSelect = "none";
 
-//     // Store the constrained positions
-//     element.setAttribute("data-x", constrainedX.toString());
-//     element.setAttribute("data-y", constrainedY.toString());
+    e.preventDefault();
+    e.stopPropagation();
+  });
 
-//     e.preventDefault();
-//   });
+  // Resize functionality
+  element.addEventListener("mousedown", (e) => {
+    const target = e.target as HTMLElement;
+    if (!target.classList.contains("resize-handle")) return;
+    if (isDragging) return;
 
-//   document.addEventListener("mouseup", () => {
-//     if (!isDragging) return;
+    isResizing = true;
+    resizeHandle = target.getAttribute("data-resize") || "";
+    resizeStartX = e.clientX;
+    resizeStartY = e.clientY;
 
-//     isDragging = false;
+    const rect = element.getBoundingClientRect();
+    const currentX = parseFloat(element.getAttribute("data-x") || "0");
+    const currentY = parseFloat(element.getAttribute("data-y") || "0");
 
-//     // Розблоковуємо iframe після перетягування
-//     unblockIframe(element);
+    startWidth = rect.width;
+    startHeight = rect.height;
+    startLeft = currentX;
+    startTop = currentY;
 
-//     dragHandle.style.cursor = "move";
-//     element.style.userSelect = "";
-//     document.body.style.userSelect = "";
-//   });
+    blockIframe(element);
+    element.style.userSelect = "none";
+    document.body.style.userSelect = "none";
 
-//   // Handle case where mouse leaves the window during drag
-//   document.addEventListener("mouseleave", () => {
-//     if (isDragging) {
-//       isDragging = false;
+    e.preventDefault();
+    e.stopPropagation();
+  });
 
-//       // Розблоковуємо iframe якщо миша покинула вікно
-//       unblockIframe(element);
+  // Global mouse move handler
+  document.addEventListener("mousemove", (e) => {
+    if (isDragging) {
+      handleDrag(e);
+    } else if (isResizing) {
+      handleResize(e);
+    }
+  });
 
-//       dragHandle.style.cursor = "move";
-//       element.style.userSelect = "";
-//       document.body.style.userSelect = "";
-//     }
-//   });
-// }
+  // Global mouse up handler
+  document.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+      unblockIframe(element);
+      dragHandle.style.cursor = "move";
+      element.style.userSelect = "";
+      document.body.style.userSelect = "";
+    }
 
-// Setup interact.js for drag and resize functionality
-function setupInteract(element: HTMLElement, dragHandle: HTMLElement) {
-  // function setupInteract(element: HTMLElement) {
-  // Check if interact.js is available
-  if (typeof interact === "undefined") {
-    console.error("interact.js is not loaded");
-    return;
+    if (isResizing) {
+      isResizing = false;
+      resizeHandle = "";
+      unblockIframe(element);
+      element.style.userSelect = "";
+      document.body.style.userSelect = "";
+    }
+  });
+
+  // Handle mouse leave window
+  document.addEventListener("mouseleave", () => {
+    if (isDragging) {
+      isDragging = false;
+      unblockIframe(element);
+      dragHandle.style.cursor = "move";
+      element.style.userSelect = "";
+      document.body.style.userSelect = "";
+    }
+
+    if (isResizing) {
+      isResizing = false;
+      resizeHandle = "";
+      unblockIframe(element);
+      element.style.userSelect = "";
+      document.body.style.userSelect = "";
+    }
+  });
+
+  function handleDrag(e: MouseEvent) {
+    const deltaX = e.clientX - dragStartX;
+    const deltaY = e.clientY - dragStartY;
+
+    const newX = elementStartX + deltaX;
+    const newY = elementStartY + deltaY;
+
+    const rect = element.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Constrain to viewport
+    const constrainedX = Math.max(
+      0,
+      Math.min(newX, viewportWidth - rect.width)
+    );
+    const constrainedY = Math.max(
+      0,
+      Math.min(newY, viewportHeight - rect.height)
+    );
+
+    element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
+    element.style.right = "auto";
+    element.style.bottom = "auto";
+
+    element.setAttribute("data-x", constrainedX.toString());
+    element.setAttribute("data-y", constrainedY.toString());
   }
 
-  // Fixed draggable move listener with correct boundary calculations
-  interact(dragHandle).draggable({
-    listeners: {
-      start() {
-        console.log("Drag start");
-        // Блокуємо iframe під час перетягування
-        blockIframe(element);
-      },
-      move(event: any) {
-        const target = element;
-        const x = parseFloat(target.getAttribute("data-x") || "0") + event.dx;
-        const y = parseFloat(target.getAttribute("data-y") || "0") + event.dy;
+  function handleResize(e: MouseEvent) {
+    const deltaX = e.clientX - resizeStartX;
+    const deltaY = e.clientY - resizeStartY;
 
-        // Get current panel dimensions
-        const panelRect = target.getBoundingClientRect();
-        const panelWidth = panelRect.width;
-        const panelHeight = panelRect.height;
+    let newWidth = startWidth;
+    let newHeight = startHeight;
+    let newLeft = startLeft;
+    let newTop = startTop;
 
-        // Calculate viewport dimensions
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
-        // Keep element within viewport bounds
-        // Minimum positions (top-left corner shouldn't go beyond viewport)
-        const minX = 0;
-        const minY = 0;
+    // Handle horizontal resizing
+    if (resizeHandle.includes("w")) {
+      const proposedWidth = startWidth - deltaX;
+      const proposedLeft = startLeft + deltaX;
 
-        // Maximum positions (bottom-right corner shouldn't go beyond viewport)
-        const maxX = viewportWidth - panelWidth;
-        const maxY = viewportHeight - panelHeight;
+      // Check minimum width
+      if (proposedWidth >= minWidth) {
+        // Check left boundary
+        if (proposedLeft >= 0) {
+          newWidth = proposedWidth;
+          newLeft = proposedLeft;
+        } else {
+          // Hit left boundary, expand from current position
+          newWidth = startWidth + startLeft;
+          newLeft = 0;
+        }
+      } else {
+        // Hit minimum width
+        newWidth = minWidth;
+        newLeft = startLeft + startWidth - minWidth;
+      }
+    } else if (resizeHandle.includes("e")) {
+      const proposedWidth = startWidth + deltaX;
 
-        // Constrain the position
-        const constrainedX = Math.max(minX, Math.min(x, maxX));
-        const constrainedY = Math.max(minY, Math.min(y, maxY));
+      // Check minimum width
+      if (proposedWidth >= minWidth) {
+        // Check right boundary
+        if (startLeft + proposedWidth <= viewportWidth) {
+          newWidth = proposedWidth;
+        } else {
+          // Hit right boundary
+          newWidth = viewportWidth - startLeft;
+        }
+      } else {
+        // Hit minimum width
+        newWidth = minWidth;
+      }
+    }
 
-        // Apply the transformation
-        target.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
-        target.style.right = "auto";
-        target.style.bottom = "auto";
+    // Handle vertical resizing
+    if (resizeHandle.includes("n")) {
+      const proposedHeight = startHeight - deltaY;
+      const proposedTop = startTop + deltaY;
 
-        // Store the constrained positions
-        target.setAttribute("data-x", constrainedX.toString());
-        target.setAttribute("data-y", constrainedY.toString());
-      },
-      end() {
-        console.log("Drag end");
-        // Розблоковуємо iframe після перетягування
-        unblockIframe(element);
-      },
-    },
-  });
+      // Check minimum height
+      if (proposedHeight >= minHeight) {
+        // Check top boundary
+        if (proposedTop >= 0) {
+          newHeight = proposedHeight;
+          newTop = proposedTop;
+        } else {
+          // Hit top boundary, expand from current position
+          newHeight = startHeight + startTop;
+          newTop = 0;
+        }
+      } else {
+        // Hit minimum height
+        newHeight = minHeight;
+        newTop = startTop + startHeight - minHeight;
+      }
+    } else if (resizeHandle.includes("s")) {
+      const proposedHeight = startHeight + deltaY;
 
-  // Make element resizable
-  interact(element).resizable({
-    edges: { left: true, right: true, bottom: true, top: true },
-    margin: 8,
-    listeners: {
-      start(event: any) {
-        console.log("Resize start", event);
-        // Блокуємо iframe під час зміни розміру
-        blockIframe(element);
-      },
-      move(event: any) {
-        const target = event.target;
-        let x = parseFloat(target.getAttribute("data-x") || "0");
-        let y = parseFloat(target.getAttribute("data-y") || "0");
+      // Check minimum height
+      if (proposedHeight >= minHeight) {
+        // Check bottom boundary
+        if (startTop + proposedHeight <= viewportHeight) {
+          newHeight = proposedHeight;
+        } else {
+          // Hit bottom boundary
+          newHeight = viewportHeight - startTop;
+        }
+      } else {
+        // Hit minimum height
+        newHeight = minHeight;
+      }
+    }
 
-        // Update element size
-        target.style.width = event.rect.width + "px";
-        target.style.height = event.rect.height + "px";
+    // Apply changes
+    element.style.width = newWidth + "px";
+    element.style.height = newHeight + "px";
+    element.style.transform = `translate(${newLeft}px, ${newTop}px)`;
+    element.style.right = "auto";
+    element.style.bottom = "auto";
 
-        // Update element position
-        x += event.deltaRect.left;
-        y += event.deltaRect.top;
+    element.setAttribute("data-x", newLeft.toString());
+    element.setAttribute("data-y", newTop.toString());
+  }
 
-        // Keep element within viewport bounds
-        const maxX = window.innerWidth - target.offsetWidth;
-        const maxY = window.innerHeight - target.offsetHeight;
+  function getResizeHandleStyle(handle: string): string {
+    const baseStyle = `
+      position: absolute;
+      background: transparent;
+      z-index: 1000001;
+      transition: background-color 0.2s ease, border 0.2s ease;
+    `;
 
-        const constrainedX = Math.max(0, Math.min(x, maxX));
-        const constrainedY = Math.max(0, Math.min(y, maxY));
+    const styles: { [key: string]: string } = {
+      nw: `${baseStyle} top: 0; left: 0; width: 8px; height: 8px; cursor: nw-resize;`,
+      n: `${baseStyle}  top: 0; left: 8px; right: 8px; height: 8px; cursor: n-resize;`,
+      ne: `${baseStyle} top: 0; right: 0; width: 8px; height: 8px; cursor: ne-resize;`,
+      w: `${baseStyle}  top: 8px; left: 0; width: 8px; bottom: 8px; cursor: w-resize;`,
+      e: `${baseStyle}  top: 8px; right: 0; width: 8px; bottom: 8px; cursor: e-resize;`,
+      sw: `${baseStyle} bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize;`,
+      s: `${baseStyle}  bottom: 0; left: 8px; right: 8px; height: 8px; cursor: s-resize;`,
+      se: `${baseStyle} bottom: 0; right: 0; width: 8px; height: 8px; cursor: se-resize;`,
+    };
 
-        target.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
-        target.style.right = "auto";
-        target.style.bottom = "auto";
-
-        target.setAttribute("data-x", constrainedX.toString());
-        target.setAttribute("data-y", constrainedY.toString());
-      },
-      end(event: any) {
-        console.log("Resize end", event);
-        // Розблоковуємо iframe після зміни розміру
-        unblockIframe(element);
-      },
-    },
-    modifiers: [
-      // Keep element within viewport
-      interact.modifiers.restrictSize({
-        min: { width: 200 + 16, height: 100 + 16 },
-      }),
-    ],
-  });
+    return styles[handle] || baseStyle;
+  }
 }
 
 function removeFloatPanel() {
@@ -369,17 +461,12 @@ function removeFloatPanel() {
     "chrome-extension-float-panel-container"
   );
   if (container) {
-    // Clean up interact.js instances if available
-    if (typeof interact !== "undefined") {
-      interact(container).unset();
-      const dragHandle = container.querySelector(
-        "#chrome-extension-drag-handle"
-      ) as HTMLElement;
-      if (dragHandle) {
-        interact(dragHandle).unset();
-      }
+    // Remove all event listeners by cloning and replacing the element
+    const newContainer = container.cloneNode(true);
+    if (container.parentNode) {
+      container.parentNode.replaceChild(newContainer, container);
+      (newContainer as HTMLElement).remove();
     }
-    container.remove();
   }
 }
 
@@ -419,6 +506,7 @@ function initializeFloatPanel() {
     }
   });
 }
+
 // Listen for messages from iframe
 window.addEventListener("message", (event) => {
   // Filter out React DevTools messages immediately

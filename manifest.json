@@ -11,7 +11,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["interact.js", "content.js"],
+      "js": ["content.js"],
       "css": ["content.css"]
     }
   ],
