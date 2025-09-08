@@ -1,0 +1,13 @@
+/* Content script styles */
+#chrome-extension-float-panel {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Ensure the float panel appears above other elements */
+#chrome-extension-float-panel {
+  z-index: 2147483647 !important;
+}
