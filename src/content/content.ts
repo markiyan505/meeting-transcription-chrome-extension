@@ -69,12 +69,12 @@ function injectFloatPanel() {
       position: fixed;
       top: 0px;
       left: 0px;
-      width: 416px;
-      height: 316px;
+      width: 50px;
+      height: 152px;
       z-index: 999999;
       background-color: #000;
       border: none;
-      border-radius: 8px;
+      border-radius: 4px;
     `;
 
     // Create iframe for float panel
@@ -82,15 +82,14 @@ function injectFloatPanel() {
     iframe.id = "chrome-extension-float-panel";
     iframe.src = chrome.runtime.getURL("src/floatpanel/index.html");
     iframe.style.cssText = `
-      width: calc(100% - 16px);
-      height: calc(100% - 16px);
+      width: calc(100%);
+      height: calc(100%);
       border: none;
-      border-radius: 6px;
+      border-radius: 4px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       background: white;
       transition: height 0.3s ease-in-out;
       pointer-events: auto;
-      margin: 8px;
     `;
 
     // Create drag handle overlay for left side of header (where buttons are not)
@@ -98,13 +97,16 @@ function injectFloatPanel() {
     dragHandle.id = "chrome-extension-drag-handle";
     dragHandle.style.cssText = `
       position: absolute;
-      top: 8px;
-      left: 8px;
-      right: 80px;
-      height: 40px;
+      top: 0px;
+      left: 0px;
+      height: 28px;
+      width: 50px;
+      border: none;
+      border-top-left-radius: 4px;
+      border-top-right-radius: 4px;
       z-index: 1000000;
       cursor: move;
-      background: transparent;
+      background: rgba(0, 0, 0, 0.01);
       transition: background-color 0.2s ease;
     `;
 
@@ -122,7 +124,8 @@ function injectFloatPanel() {
     document.body.appendChild(container);
 
     // Add custom drag and resize functionality
-    setupCustomInteract(container, dragHandle);
+    setupDragLogic(container, dragHandle);
+    // setupResizeLogic(container);
 
     console.log("Float panel injected successfully");
   } catch (error) {
@@ -149,8 +152,8 @@ function unblockIframe(container: HTMLElement) {
   }
 }
 
-// Custom drag and resize implementation
-function setupCustomInteract(element: HTMLElement, dragHandle: HTMLElement) {
+// Custom drag implementation
+function setupDragLogic(element: HTMLElement, dragHandle: HTMLElement) {
   // Drag variables
   let isDragging = false;
   let dragStartX = 0;
@@ -158,6 +161,85 @@ function setupCustomInteract(element: HTMLElement, dragHandle: HTMLElement) {
   let elementStartX = 0;
   let elementStartY = 0;
 
+  // Drag functionality
+  dragHandle.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+
+    elementStartX = parseFloat(element.getAttribute("data-x") || "0");
+    elementStartY = parseFloat(element.getAttribute("data-y") || "0");
+
+    blockIframe(element);
+    dragHandle.style.cursor = "grabbing";
+    element.style.userSelect = "none";
+    document.body.style.userSelect = "none";
+
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  // Global mouse move handler for drag
+  document.addEventListener("mousemove", (e) => {
+    if (isDragging) {
+      handleDrag(e);
+    }
+  });
+
+  // Global mouse up handler for drag
+  document.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+      unblockIframe(element);
+      dragHandle.style.cursor = "move";
+      element.style.userSelect = "";
+      document.body.style.userSelect = "";
+    }
+  });
+
+  // Handle mouse leave window for drag
+  document.addEventListener("mouseleave", () => {
+    if (isDragging) {
+      isDragging = false;
+      unblockIframe(element);
+      dragHandle.style.cursor = "move";
+      element.style.userSelect = "";
+      document.body.style.userSelect = "";
+    }
+  });
+
+  function handleDrag(e: MouseEvent) {
+    const deltaX = e.clientX - dragStartX;
+    const deltaY = e.clientY - dragStartY;
+
+    const newX = elementStartX + deltaX;
+    const newY = elementStartY + deltaY;
+
+    const rect = element.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Constrain to viewport
+    const constrainedX = Math.max(
+      0,
+      Math.min(newX, viewportWidth - rect.width)
+    );
+    const constrainedY = Math.max(
+      0,
+      Math.min(newY, viewportHeight - rect.height)
+    );
+
+    element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
+    element.style.right = "auto";
+    element.style.bottom = "auto";
+
+    element.setAttribute("data-x", constrainedX.toString());
+    element.setAttribute("data-y", constrainedY.toString());
+  }
+}
+
+// Custom resize implementation
+function setupResizeLogic(element: HTMLElement) {
   // Resize variables
   let isResizing = false;
   let resizeHandle = "";
@@ -168,8 +250,8 @@ function setupCustomInteract(element: HTMLElement, dragHandle: HTMLElement) {
   let startLeft = 0;
   let startTop = 0;
 
-  const minWidth = 216; // 200 + 16 margin
-  const minHeight = 116; // 100 + 16 margin
+  const minWidth = 28;
+  const minHeight = 18;
 
   // Create resize handles
   const resizeHandles = ["nw", "n", "ne", "w", "e", "sw", "s", "se"];
@@ -208,31 +290,10 @@ function setupCustomInteract(element: HTMLElement, dragHandle: HTMLElement) {
     element.appendChild(resizeDiv);
   });
 
-  // Drag functionality
-  dragHandle.addEventListener("mousedown", (e) => {
-    if (isResizing) return;
-
-    isDragging = true;
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
-
-    elementStartX = parseFloat(element.getAttribute("data-x") || "0");
-    elementStartY = parseFloat(element.getAttribute("data-y") || "0");
-
-    blockIframe(element);
-    dragHandle.style.cursor = "grabbing";
-    element.style.userSelect = "none";
-    document.body.style.userSelect = "none";
-
-    e.preventDefault();
-    e.stopPropagation();
-  });
-
   // Resize functionality
   element.addEventListener("mousedown", (e) => {
     const target = e.target as HTMLElement;
     if (!target.classList.contains("resize-handle")) return;
-    if (isDragging) return;
 
     isResizing = true;
     resizeHandle = target.getAttribute("data-resize") || "";
@@ -256,25 +317,15 @@ function setupCustomInteract(element: HTMLElement, dragHandle: HTMLElement) {
     e.stopPropagation();
   });
 
-  // Global mouse move handler
+  // Global mouse move handler for resize
   document.addEventListener("mousemove", (e) => {
-    if (isDragging) {
-      handleDrag(e);
-    } else if (isResizing) {
+    if (isResizing) {
       handleResize(e);
     }
   });
 
-  // Global mouse up handler
+  // Global mouse up handler for resize
   document.addEventListener("mouseup", () => {
-    if (isDragging) {
-      isDragging = false;
-      unblockIframe(element);
-      dragHandle.style.cursor = "move";
-      element.style.userSelect = "";
-      document.body.style.userSelect = "";
-    }
-
     if (isResizing) {
       isResizing = false;
       resizeHandle = "";
@@ -284,16 +335,8 @@ function setupCustomInteract(element: HTMLElement, dragHandle: HTMLElement) {
     }
   });
 
-  // Handle mouse leave window
+  // Handle mouse leave window for resize
   document.addEventListener("mouseleave", () => {
-    if (isDragging) {
-      isDragging = false;
-      unblockIframe(element);
-      dragHandle.style.cursor = "move";
-      element.style.userSelect = "";
-      document.body.style.userSelect = "";
-    }
-
     if (isResizing) {
       isResizing = false;
       resizeHandle = "";
@@ -302,35 +345,6 @@ function setupCustomInteract(element: HTMLElement, dragHandle: HTMLElement) {
       document.body.style.userSelect = "";
     }
   });
-
-  function handleDrag(e: MouseEvent) {
-    const deltaX = e.clientX - dragStartX;
-    const deltaY = e.clientY - dragStartY;
-
-    const newX = elementStartX + deltaX;
-    const newY = elementStartY + deltaY;
-
-    const rect = element.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    // Constrain to viewport
-    const constrainedX = Math.max(
-      0,
-      Math.min(newX, viewportWidth - rect.width)
-    );
-    const constrainedY = Math.max(
-      0,
-      Math.min(newY, viewportHeight - rect.height)
-    );
-
-    element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
-    element.style.right = "auto";
-    element.style.bottom = "auto";
-
-    element.setAttribute("data-x", constrainedX.toString());
-    element.setAttribute("data-y", constrainedY.toString());
-  }
 
   function handleResize(e: MouseEvent) {
     const deltaX = e.clientX - resizeStartX;
@@ -442,14 +456,14 @@ function setupCustomInteract(element: HTMLElement, dragHandle: HTMLElement) {
     `;
 
     const styles: { [key: string]: string } = {
-      nw: `${baseStyle} top: 0; left: 0; width: 8px; height: 8px; cursor: nw-resize;`,
-      n: `${baseStyle}  top: 0; left: 8px; right: 8px; height: 8px; cursor: n-resize;`,
-      ne: `${baseStyle} top: 0; right: 0; width: 8px; height: 8px; cursor: ne-resize;`,
-      w: `${baseStyle}  top: 8px; left: 0; width: 8px; bottom: 8px; cursor: w-resize;`,
-      e: `${baseStyle}  top: 8px; right: 0; width: 8px; bottom: 8px; cursor: e-resize;`,
-      sw: `${baseStyle} bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize;`,
-      s: `${baseStyle}  bottom: 0; left: 8px; right: 8px; height: 8px; cursor: s-resize;`,
-      se: `${baseStyle} bottom: 0; right: 0; width: 8px; height: 8px; cursor: se-resize;`,
+      nw: `${baseStyle} top: 0; left: 0; width: 4px; height: 4px; cursor: nw-resize;`,
+      n: `${baseStyle}  top: 0; left: 4px; right: 4px; height: 4px; cursor: n-resize;`,
+      ne: `${baseStyle} top: 0; right: 0; width: 4px; height: 4px; cursor: ne-resize;`,
+      w: `${baseStyle}  top: 4px; left: 0; width: 4px; bottom: 4px; cursor: w-resize;`,
+      e: `${baseStyle}  top: 4px; right: 0; width: 4px; bottom: 4px; cursor: e-resize;`,
+      sw: `${baseStyle} bottom: 0; left: 0; width: 4px; height: 4px; cursor: sw-resize;`,
+      s: `${baseStyle}  bottom: 0; left: 4px; right: 4px; height: 4px; cursor: s-resize;`,
+      se: `${baseStyle} bottom: 0; right: 0; width: 4px; height: 4px; cursor: se-resize;`,
     };
 
     return styles[handle] || baseStyle;

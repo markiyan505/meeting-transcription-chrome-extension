@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import FloatPanelApp from "./FloatPanelApp";
+import MeetControlPanel from "@/components/MeetControlPanel/";
 import "../index.css";
 
 const container = document.getElementById("floatpanel-root");
@@ -8,4 +8,4 @@ if (!container) {
 }
 
 const root = createRoot(container);
-root.render(<FloatPanelApp />);
+root.render(<MeetControlPanel />);

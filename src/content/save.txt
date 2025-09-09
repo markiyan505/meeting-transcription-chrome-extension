@@ -1,0 +1,84 @@
+function injectFloatPanel() {
+  // Check if extension context is valid
+  if (!isExtensionContextValid()) {
+    console.log("Extension context invalid, cannot inject float panel");
+    return;
+  }
+
+  // Check if float panel is already injected
+  if (document.getElementById("chrome-extension-float-panel-container")) {
+    return;
+  }
+
+  try {
+    // Create container for float panel
+    const container = document.createElement("div");
+    container.id = "chrome-extension-float-panel-container";
+    container.style.cssText = `
+      position: fixed;
+      top: 0px;
+      left: 0px;
+      width: 58px;
+      height: 156px;
+      z-index: 999999;
+      background-color: #000;
+      border: none;
+      border-radius: 8px;
+    `;
+
+    // Create iframe for float panel
+    const iframe = document.createElement("iframe");
+    iframe.id = "chrome-extension-float-panel";
+    iframe.src = chrome.runtime.getURL("src/floatpanel/index.html");
+    iframe.style.cssText = `
+      width: calc(100% - 8px);
+      height: calc(100% - 8px);
+      border: none;
+      border-radius: 5px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      background: white;
+      transition: height 0.3s ease-in-out;
+      pointer-events: auto;
+      margin: 4px;
+    `;
+
+    // Create drag handle overlay for left side of header (where buttons are not)
+    const dragHandle = document.createElement("div");
+    dragHandle.id = "chrome-extension-drag-handle";
+    dragHandle.style.cssText = `
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      height: 28px;
+      width: 50px;
+      border: none;
+      border-top-left-radius: 4px;
+      border-top-right-radius: 4px;
+      z-index: 1000000;
+      cursor: move;
+      background: rgba(0, 0, 0, 0.01);
+      transition: background-color 0.2s ease;
+    `;
+
+    // Add hover effect for drag handle
+    dragHandle.addEventListener("mouseenter", () => {
+      dragHandle.style.background = "rgba(59, 130, 246, 0.1)";
+    });
+
+    dragHandle.addEventListener("mouseleave", () => {
+      dragHandle.style.background = "transparent";
+    });
+
+    container.appendChild(iframe);
+    container.appendChild(dragHandle);
+    document.body.appendChild(container);
+
+    // Add custom drag and resize functionality
+    setupDragLogic(container, dragHandle);
+    // setupResizeLogic(container);
+
+    console.log("Float panel injected successfully");
+  } catch (error) {
+    console.error("Failed to inject float panel:", error);
+  }
+}

@@ -22,6 +22,11 @@ export default defineConfig({
       ],
     }),
   ],
+  server: {
+    port: 3000,
+    open: true,
+    cors: true,
+  },
   build: {
     outDir: "dist",
     rollupOptions: {
@@ -31,6 +36,7 @@ export default defineConfig({
         "content.css": "./src/content/content.css",
         background: "./src/background/background.ts",
         floatpanel: "./src/floatpanel/index.html",
+        dev: "./src/dev/index.html",
       },
       output: {
         entryFileNames: "[name].js",
