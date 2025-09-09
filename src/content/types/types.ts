@@ -28,7 +28,7 @@ export const CONTROL_PANEL: PanelConfig = {
     WIDTH: 28,
     HEIGHT: 18,
   },
-  IFRAME_SRC: "src/floatpanel/index.html",
+  IFRAME_SRC: "src/entries/floatpanel/index.html",
   DEFAULT_STYLES: {
     container: `
       position: fixed;
@@ -82,7 +82,7 @@ export const SUBTITLES_PANEL: PanelConfig = {
     WIDTH: 200,
     HEIGHT: 100,
   },
-  IFRAME_SRC: "src/float-panel-subtitles/index.html",
+  IFRAME_SRC: "src/entries/subtitles-panel/index.html",
   DEFAULT_STYLES: {
     container: `
       position: fixed;

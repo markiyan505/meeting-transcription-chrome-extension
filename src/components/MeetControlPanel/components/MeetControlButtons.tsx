@@ -1,6 +1,6 @@
 import React from "react";
 import { Play, Pause, Square, Subtitles, User, Languages } from "lucide-react";
-import { MeetButton } from "./button";
+import { MeetButton } from "@/components/ui/button";
 import { TooltipPosition } from "@/components/hooks/useTooltipPosition";
 
 interface ControlButtonsProps {

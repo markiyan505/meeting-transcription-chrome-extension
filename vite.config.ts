@@ -31,13 +31,13 @@ export default defineConfig({
     outDir: "dist",
     rollupOptions: {
       input: {
-        popup: "./src/popup/index.html",
+        popup: "./src/entries/popup/index.html",
         content: "./src/content/content.ts",
         "content.css": "./src/content/content.css",
         background: "./src/background/background.ts",
-        floatpanel: "./src/floatpanel/index.html",
-        "float-panel-subtitles": "./src/float-panel-subtitles/index.html",
-        dev: "./src/dev/index.html",
+        floatpanel: "./src/entries/floatpanel/index.html",
+        "subtitles-panel": "./src/entries/subtitles-panel/index.html",
+        dev: "./src/entries/dev/index.html",
       },
       output: {
         entryFileNames: "[name].js",

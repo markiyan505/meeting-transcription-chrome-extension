@@ -11,7 +11,7 @@ import {
   StopButton,
   ResumeButton,
   SubtitlesButton,
-} from "@/components/ui/control-buttons";
+} from "./MeetControlButtons";
 
 interface MainControlsProps {
   state: stateType;
@@ -101,7 +101,6 @@ export const MainControls: React.FC<MainControlsProps> = ({
           tooltipPosition={tooltipPosition}
           onClick={() => onStateChange("idle")}
         />
-        
       )}
 
       {state !== "idle" && (
@@ -111,7 +110,6 @@ export const MainControls: React.FC<MainControlsProps> = ({
           active={isSubtitlesEnabled}
         />
       )}
-
     </div>
   );
 };

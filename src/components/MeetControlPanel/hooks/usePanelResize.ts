@@ -89,14 +89,14 @@ export const usePanelResize = ({
       height: height,
     });
 
-    console.log("Panel resize message sent:", {
-      orientation: currentState.orientation,
-      isCollapsed: currentState.isCollapsed,
-      state: currentState.state,
-      error: currentState.error,
-      width: width,
-      height: height,
-    });
+    // console.log("Panel resize message sent:", {
+    //   orientation: currentState.orientation,
+    //   isCollapsed: currentState.isCollapsed,
+    //   state: currentState.state,
+    //   error: currentState.error,
+    //   width: width,
+    //   height: height,
+    // });
   }, [panelRef, calculatePanelDimensions]);
 
   const sendOrientationMessage = useCallback(() => {
@@ -110,10 +110,10 @@ export const usePanelResize = ({
       isCollapsed: currentState.isCollapsed,
     });
 
-    console.log("Panel orientation message sent:", {
-      orientation: currentState.orientation,
-      isCollapsed: currentState.isCollapsed,
-    });
+    // console.log("Panel orientation message sent:", {
+    //   orientation: currentState.orientation,
+    //   isCollapsed: currentState.isCollapsed,
+    // });
   }, []);
 
   useEffect(() => {

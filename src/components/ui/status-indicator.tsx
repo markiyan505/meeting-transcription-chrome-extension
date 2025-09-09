@@ -21,7 +21,7 @@ export interface StatusIndicatorProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof statusIndicatorVariants> {
   icon: React.ReactNode;
-  label: string;
+  label?: string;
 }
 
 const StatusIndicator = React.forwardRef<HTMLDivElement, StatusIndicatorProps>(
@@ -33,7 +33,7 @@ const StatusIndicator = React.forwardRef<HTMLDivElement, StatusIndicatorProps>(
         {...props}
       >
         {icon}
-        <span>{label}</span>
+        {label && <span>{label}</span>}
       </div>
     );
   }

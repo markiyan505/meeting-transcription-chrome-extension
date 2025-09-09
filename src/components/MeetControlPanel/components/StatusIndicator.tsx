@@ -1,4 +1,5 @@
 import React from "react";
+import { StatusIndicator as BaseStatusIndicator } from "@/components/ui/status-indicator";
 import { stateType, errorType } from "../types";
 import { getStatusConfig } from "../utils/getStatusConfig";
 
@@ -12,10 +13,23 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   error,
 }) => {
   const config = getStatusConfig(state, error);
-
   if (!config) return null;
 
+  // Map our status to base component status
+  const getStatusVariant = (bg: string) => {
+    if (bg.includes("green")) return "success";
+    if (bg.includes("red")) return "error";
+    if (bg.includes("yellow")) return "warning";
+    if (bg.includes("blue")) return "info";
+    return "neutral";
+  };
+
   return (
-    <div className={`w-3 h-3 rounded-full ${config.bg}`} title={config.title} />
+    <BaseStatusIndicator
+      status={getStatusVariant(config.bg)}
+      icon={
+        <div className={`w-2 h-2 my-1.5 mx-1 rounded-full ${config.bg}`} />
+      }
+    />
   );
 };

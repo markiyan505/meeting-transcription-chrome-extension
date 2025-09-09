@@ -5,7 +5,7 @@
   "description": "Chrome extension built with React, TypeScript, and Tailwind CSS",
   "permissions": ["activeTab", "storage", "scripting"],
   "action": {
-    "default_popup": "src/popup/index.html",
+    "default_popup": "src/entries/popup/index.html",
     "default_title": "React Chrome Extension"
   },
   "content_scripts": [
@@ -21,11 +21,11 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/floatpanel/index.html",
-        "src/float-panel-subtitles/index.html",
+        "src/entries/floatpanel/index.html",
+        "src/entries/subtitles-panel/index.html",
         "src/index.css",
         "floatpanel.js",
-        "float-panel-subtitles.js",
+        "subtitles-panel.js",
         "index.css"
       ],
       "matches": ["<all_urls>"]

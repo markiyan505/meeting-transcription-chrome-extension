@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { MeetPanel } from "@/components/ui/meet-panel";
+import { MeetPanel } from "./components/MeetPanel";
 import { Separator } from "@/components/ui/separator";
 import { useTooltipPosition } from "@/components/hooks/useTooltipPosition";
 import { usePanelState } from "./hooks/usePanelState";

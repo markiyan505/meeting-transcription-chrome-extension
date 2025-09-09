@@ -53,15 +53,15 @@ export function handleResizeMessage(data: any): void {
     setElementPosition(container, constrained.x, constrained.y);
   }
 
-  console.log("[CONTENT SCRIPT] Float panel resized:", {
-    width: container.style.width,
-    height: container.style.height,
-    orientation: data.orientation,
-    isCollapsed: data.isCollapsed,
-    state: data.state,
-    error: data.error,
-    position: constrained,
-  });
+  // console.log("[CONTENT SCRIPT] Float panel resized:", {
+  //   width: container.style.width,
+  //   height: container.style.height,
+  //   orientation: data.orientation,
+  //   isCollapsed: data.isCollapsed,
+  //   state: data.state,
+  //   error: data.error,
+  //   position: constrained,
+  // });
 }
 
 export function handleOrientationChangeMessage(data: any): void {
@@ -102,13 +102,13 @@ export function handleOrientationChangeMessage(data: any): void {
     setElementPosition(container, constrained.x, constrained.y);
   }
 
-  console.log("[CONTENT SCRIPT] Float panel orientation changed:", {
-    orientation: data.orientation,
-    isCollapsed: data.isCollapsed,
-    width: container.style.width,
-    height: container.style.height,
-    position: constrained,
-  });
+  // console.log("[CONTENT SCRIPT] Float panel orientation changed:", {
+  //   orientation: data.orientation,
+  //   isCollapsed: data.isCollapsed,
+  //   width: container.style.width,
+  //   height: container.style.height,
+  //   position: constrained,
+  // });
 }
 
 export function handleMoveMessage(data: any): void {
@@ -117,7 +117,7 @@ export function handleMoveMessage(data: any): void {
     container.style.left = data.x + "px";
     container.style.top = data.y + "px";
     container.style.right = "auto";
-    console.log("Float panel moved to:", data.x, data.y);
+    // console.log("Float panel moved to:", data.x, data.y);
   } else {
     console.log("Float panel container not found");
   }
@@ -131,7 +131,7 @@ export function setupRuntimeMessageHandler(): void {
       return;
     }
 
-    console.log("Content script received message:", message);
+    // console.log("Content script received message:", message);
 
     const handlers = {
       GET_PAGE_INFO: () => ({
@@ -146,7 +146,7 @@ export function setupRuntimeMessageHandler(): void {
         ) as HTMLIFrameElement;
         if (panel) {
           panel.style.height = message.height + "px";
-          console.log("Float panel resized to:", message.height + "px");
+          // console.log("Float panel resized to:", message.height + "px");
         }
         return { success: true };
       },
@@ -170,12 +170,12 @@ export function setupWindowMessageHandler(): void {
       return;
     }
 
-    console.log(
-      "[CONTENT SCRIPT] Received postMessage:",
-      event.data,
-      "from:",
-      event.source
-    );
+    // console.log(
+    //   "[CONTENT SCRIPT] Received postMessage:",
+    //   event.data,
+    //   "from:",
+    //   event.source
+    // );
 
     const messageHandlers = {
       RESIZE_FLOAT_PANEL: handleResizeMessage,
