@@ -101,13 +101,17 @@ export const MainControls: React.FC<MainControlsProps> = ({
           tooltipPosition={tooltipPosition}
           onClick={() => onStateChange("idle")}
         />
+        
       )}
 
-      <SubtitlesButton
-        tooltipPosition={tooltipPosition}
-        onClick={onToggleSubtitles}
-        active={isSubtitlesEnabled}
-      />
+      {state !== "idle" && (
+        <SubtitlesButton
+          tooltipPosition={tooltipPosition}
+          onClick={onToggleSubtitles}
+          active={isSubtitlesEnabled}
+        />
+      )}
+
     </div>
   );
 };

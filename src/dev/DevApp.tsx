@@ -1,5 +1,4 @@
 import DevContainer from "./DevContainer";
-import FloatPanelApp from "../floatpanel/FloatPanelApp";
 import MeetPanelDemo from "./MeetPanelDemo";
 
 const DevApp: React.FC = () => {

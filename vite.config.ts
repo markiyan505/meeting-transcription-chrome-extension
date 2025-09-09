@@ -36,6 +36,7 @@ export default defineConfig({
         "content.css": "./src/content/content.css",
         background: "./src/background/background.ts",
         floatpanel: "./src/floatpanel/index.html",
+        "float-panel-subtitles": "./src/float-panel-subtitles/index.html",
         dev: "./src/dev/index.html",
       },
       output: {

@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { useTooltipPosition } from "@/components/hooks/useTooltipPosition";
 import { usePanelState } from "./hooks/usePanelState";
 import { usePanelActions } from "./hooks/usePanelActions";
+import { usePanelResize } from "./hooks/usePanelResize";
 import { getSeparatorOrientation } from "./utils/getOrientationClasses";
 import { DragHandle } from "./components/DragHandle";
 import { MainControls } from "./components/MainControls";
@@ -18,6 +19,15 @@ const MeetControlPanel: React.FC = () => {
     panelRef,
   });
 
+  // Use resize hook to track and send size changes
+  const { sendResizeMessage, sendOrientationMessage } = usePanelResize({
+    panelRef,
+    orientation: panelState.panelOrientation,
+    isCollapsed: panelState.isCollapsed,
+    state: panelState.state,
+    error: panelState.error,
+  });
+
   const actions = usePanelActions({
     setState: panelState.setState,
     setError: panelState.setError,
@@ -27,6 +37,8 @@ const MeetControlPanel: React.FC = () => {
     isSubtitlesEnabled: panelState.isSubtitlesEnabled,
     panelOrientation: panelState.panelOrientation,
     isCollapsed: panelState.isCollapsed,
+    sendResizeMessage,
+    sendOrientationMessage,
   });
 
   return (

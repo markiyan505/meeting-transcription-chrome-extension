@@ -10,6 +10,8 @@ interface UsePanelActionsProps {
   isSubtitlesEnabled: boolean;
   panelOrientation: orientationType;
   isCollapsed: boolean;
+  sendResizeMessage: () => void;
+  sendOrientationMessage: () => void;
 }
 
 export const usePanelActions = ({
@@ -21,20 +23,33 @@ export const usePanelActions = ({
   isSubtitlesEnabled,
   panelOrientation,
   isCollapsed,
+  sendResizeMessage,
+  sendOrientationMessage,
 }: UsePanelActionsProps) => {
   const handleToggleSubtitles = useCallback(() => {
     setIsSubtitlesEnabled(!isSubtitlesEnabled);
   }, [isSubtitlesEnabled, setIsSubtitlesEnabled]);
 
   const handleOrientationToggle = useCallback(() => {
-    setPanelOrientation(
-      panelOrientation === "vertical" ? "horizontal" : "vertical"
-    );
-  }, [panelOrientation, setPanelOrientation]);
+    const newOrientation =
+      panelOrientation === "vertical" ? "horizontal" : "vertical";
+    setPanelOrientation(newOrientation);
+
+    // Send orientation change message after DOM update
+    requestAnimationFrame(() => {
+      sendOrientationMessage();
+    });
+  }, [panelOrientation, setPanelOrientation, sendOrientationMessage]);
 
   const handleMinimizeToggle = useCallback(() => {
-    setIsCollapsed(!isCollapsed);
-  }, [isCollapsed, setIsCollapsed]);
+    const newCollapsed = !isCollapsed;
+    setIsCollapsed(newCollapsed);
+
+    // Send resize message after DOM update
+    requestAnimationFrame(() => {
+      sendResizeMessage();
+    });
+  }, [isCollapsed, setIsCollapsed, sendResizeMessage]);
 
   const handleErrorDismiss = useCallback(() => {
     setError(undefined);

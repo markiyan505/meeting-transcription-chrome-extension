@@ -11,3 +11,7 @@
 #chrome-extension-float-panel {
   z-index: 2147483647 !important;
 }
+
+#chrome-extension-float-panel-subtitles {
+  z-index: 2147483647 !important;
+}

@@ -20,7 +20,14 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["src/floatpanel/index.html", "floatpanel.js", "index.css"],
+      "resources": [
+        "src/floatpanel/index.html",
+        "src/float-panel-subtitles/index.html",
+        "src/index.css",
+        "floatpanel.js",
+        "float-panel-subtitles.js",
+        "index.css"
+      ],
       "matches": ["<all_urls>"]
     }
   ],
