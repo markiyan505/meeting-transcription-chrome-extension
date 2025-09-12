@@ -32,8 +32,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         popup: "./src/entries/popup/index.html",
-        content: "./src/content/content.ts",
         "content.css": "./src/content/content.css",
+        content: "./src/content/content.ts",
         background: "./src/background/background.ts",
         floatpanel: "./src/entries/floatpanel/index.html",
         "subtitles-panel": "./src/entries/subtitles-panel/index.html",
@@ -47,6 +47,7 @@ export default defineConfig({
         },
         assetFileNames: "[name].[ext]",
         manualChunks: undefined, // Disable automatic chunking
+        format: "es", // Use ES modules format for other scripts
       },
     },
   },

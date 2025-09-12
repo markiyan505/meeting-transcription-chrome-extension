@@ -61,7 +61,7 @@ const MeetControlPanel: React.FC = () => {
             orientation={panelState.panelOrientation}
             isSubtitlesEnabled={panelState.isSubtitlesEnabled}
             tooltipPosition={tooltipPosition}
-            onStateChange={panelState.setState}
+            onStateChange={actions.handleStateChange}
             onErrorDismiss={actions.handleErrorDismiss}
             onToggleSubtitles={actions.handleToggleSubtitles}
           />

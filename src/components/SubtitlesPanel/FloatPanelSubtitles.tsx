@@ -163,5 +163,4 @@ const FloatPanelSubtitles: React.FC = () => {
     </div>
   );
 };
-
 export default FloatPanelSubtitles;

@@ -1,0 +1,6 @@
+[submodule "vendor/transcriptonic"]
+	path = vendor/transcriptonic
+	url = https://github.com/vivek-nexus/transcriptonic.git
+[submodule "vendor/live-captions-saver"]
+	path = vendor/live-captions-saver
+	url = https://github.com/Zerg00s/Live-Captions-Saver.git

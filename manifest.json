@@ -3,7 +3,7 @@
   "name": "React Chrome Extension",
   "version": "1.0.0",
   "description": "Chrome extension built with React, TypeScript, and Tailwind CSS",
-  "permissions": ["activeTab", "storage", "scripting"],
+  "permissions": ["activeTab", "storage", "scripting", "downloads"],
   "action": {
     "default_popup": "src/entries/popup/index.html",
     "default_title": "React Chrome Extension"
