@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "React Chrome Extension",
+  "name": "Meeting Transcription",
   "version": "1.0.0",
-  "description": "Chrome extension built with React, TypeScript, and Tailwind CSS",
+  "description": "Extension to save transcripts of meetings",
   "permissions": ["activeTab", "storage", "scripting", "downloads"],
   "action": {
     "default_popup": "src/entries/popup/index.html",
-    "default_title": "React Chrome Extension"
+    "default_title": "Meeting Transcription"
   },
   "content_scripts": [
     {

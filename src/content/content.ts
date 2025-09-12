@@ -1,4 +1,4 @@
-console.log("Content script loaded");
+console.log("Content script loaded successfully");
 
 // Import modules
 import { CONTROL_PANEL, SUBTITLES_PANEL } from "./types/types";

@@ -1,188 +1,229 @@
-import React from "react";
-import {
-  Settings,
-  Zap,
-  Eye,
-  EyeOff,
-  Palette,
-  ToggleLeft,
-  ToggleRight,
-  Info,
-  ExternalLink,
-} from "lucide-react";
+import React, { useState, useEffect } from "react";
 import { useExtensionStore } from "@/store/useExtensionStore";
 import { useFloatPanelStore } from "@/store/useFloatPanelStore";
+import Header from "./components/Header";
+import Tabs, { TabType } from "./components/Tabs";
+import HomeTab from "./components/HomeTab";
+import RecordsTab from "./components/RecordsTab";
+import ProfileTab from "./components/ProfileTab";
 
 const PopupApp: React.FC = () => {
-  const { isActive, settings, setActive, setTheme, setAutoOpen } =
-    useExtensionStore();
-
+  const { isActive, settings, setActive, setTheme } = useExtensionStore();
   const { isVisible, show, hide } = useFloatPanelStore();
 
-  const handleToggleActive = () => {
-    setActive(!isActive);
-  };
+  const [activeTab, setActiveTab] = useState<TabType>("home");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isSupported, setIsSupported] = useState(true);
+  const [statusMessage, setStatusMessage] = useState<string>("");
 
-  const handleToggleTheme = () => {
-    setTheme(settings.theme === "light" ? "dark" : "light");
-  };
+  // Mock data based on existing interfaces
+  const [records, setRecords] = useState([
+    {
+      id: "1",
+      title: "Team Meeting - Project Discussion",
+      time: "2024-01-15 14:30",
+      duration: "1h 25m",
+      platform: "google-meet" as const,
+      isSynced: true,
+      captionCount: 245,
+      attendeeCount: 8,
+    },
+    {
+      id: "2",
+      title: "Client Presentation",
+      time: "2024-01-14 10:15",
+      duration: "45m",
+      platform: "teams" as const,
+      isSynced: false,
+      captionCount: 180,
+      attendeeCount: 5,
+    },
+    {
+      id: "3",
+      title: "Daily Standup",
+      time: "2024-01-13 09:00",
+      duration: "30m",
+      platform: "google-meet" as const,
+      isSynced: true,
+      captionCount: 95,
+      attendeeCount: 12,
+    },
+    {
+      id: "4",
+      title: "Sprint Planning",
+      time: "2024-01-12 15:00",
+      duration: "2h 10m",
+      platform: "teams" as const,
+      isSynced: true,
+      captionCount: 320,
+      attendeeCount: 15,
+    },
+    {
+      id: "5",
+      title: "Code Review Session",
+      time: "2024-01-11 11:30",
+      duration: "1h 15m",
+      platform: "google-meet" as const,
+      isSynced: false,
+      captionCount: 150,
+      attendeeCount: 6,
+    },
+  ]);
 
-  const handleToggleAutoOpen = () => {
-    setAutoOpen(!settings.autoOpen);
-  };
+  const [user] = useState({
+    name: "John Doe",
+    email: "john.doe@example.com",
+    avatar: undefined,
+  });
 
-  const handleToggleFloatPanel = () => {
-    if (isVisible) {
-      hide();
-    } else {
-      show();
+  const [profileSettings, setProfileSettings] = useState({
+    autoStart: false,
+    autoEnableCaptions: true,
+    allowAutoEnable: true,
+    theme: settings.theme,
+    notifications: true,
+  });
+
+  const [stats] = useState({
+    totalRecords: 47,
+    totalTime: "23h 45m",
+    thisWeekRecords: 8,
+    thisMonthRecords: 23,
+  });
+
+  useEffect(() => {
+    const checkSiteSupport = async () => {
+      try {
+        const [tab] = await chrome.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
+        if (tab.url) {
+          const isGoogleMeet = tab.url.includes("meet.google.com");
+          const isTeams =
+            tab.url.includes("teams.microsoft.com") ||
+            tab.url.includes("teams.live.com");
+
+          if (isGoogleMeet || isTeams) {
+            setIsSupported(true);
+            setStatusMessage("");
+          } else {
+            setIsSupported(false);
+            setStatusMessage(
+              "This site is not supported. Extension works only with Google Meet and Microsoft Teams."
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error checking site support:", error);
+        setIsSupported(false);
+        setStatusMessage("Failed to determine site support.");
+      }
+    };
+
+    checkSiteSupport();
+  }, []);
+
+  const handleToggleActive = () => setActive(!isActive);
+  const handleToggleFloatPanel = () => (isVisible ? hide() : show());
+
+  // Handlers for recording actions
+  const createMessageHandler = (action: string) => async () => {
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (tab.id) {
+        await chrome.tabs.sendMessage(tab.id, { type: action });
+        if (action === "start_caption_recording") {
+          setIsRecording(true);
+          setIsPaused(false);
+        } else if (action === "stop_caption_recording") {
+          setIsRecording(false);
+          setIsPaused(false);
+        } else if (action === "pause_caption_recording") {
+          setIsPaused(true);
+        } else if (action === "resume_caption_recording") {
+          setIsPaused(false);
+        }
+      }
+    } catch (error) {
+      console.error(`Error with action ${action}:`, error);
     }
   };
 
+  const handleStartRecording = createMessageHandler("start_caption_recording");
+  const handleStopRecording = createMessageHandler("stop_caption_recording");
+  const handlePauseRecording = createMessageHandler("pause_caption_recording");
+  const handleResumeRecording = createMessageHandler(
+    "resume_caption_recording"
+  );
+
+  // Handlers for records
+  const handleDeleteRecord = (id: string) =>
+    setRecords(records.filter((r) => r.id !== id));
+  const handleSyncRecord = (id: string) =>
+    setRecords(
+      records.map((r) => (r.id === id ? { ...r, isSynced: true } : r))
+    );
+
+  const handleSettingChange = (key: string, value: any) => {
+    setProfileSettings((prev) => ({ ...prev, [key]: value }));
+    if (key === "theme") setTheme(value);
+  };
+
+  const handleExportData = () => {
+    console.log("Export all data");
+    // Export all data functionality
+  };
+
+  const lastRecord = records.length > 0 ? records[0] : undefined;
+
   return (
-    <div className="min-h-full bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="text-lg font-semibold text-gray-900">
-              React Extension
-            </h1>
-          </div>
-          <button
-            onClick={handleToggleActive}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              isActive ? "bg-primary-600" : "bg-gray-200"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                isActive ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
-      </div>
-
-      {/* Status */}
-      <div className="px-4 py-3 bg-white border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            {isActive ? (
-              <Eye className="w-4 h-4 text-green-600" />
-            ) : (
-              <EyeOff className="w-4 h-4 text-gray-400" />
-            )}
-            <span
-              className={`text-sm font-medium ${
-                isActive ? "text-green-600" : "text-gray-500"
-              }`}
-            >
-              {isActive ? "Active" : "Inactive"}
-            </span>
-          </div>
-          <span className="text-xs text-gray-500">v1.0.0</span>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="px-4 py-3">
-        <h3 className="text-sm font-medium text-gray-900 mb-3">
-          Quick Actions
-        </h3>
-        <div className="space-y-2">
-          <button
-            onClick={handleToggleFloatPanel}
-            className="w-full flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <ExternalLink className="w-4 h-4 text-blue-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-900">
-                Float Panel
-              </span>
-            </div>
-            <span
-              className={`text-xs px-2 py-1 rounded-full ${
-                isVisible
-                  ? "bg-green-100 text-green-800"
-                  : "bg-gray-100 text-gray-600"
-              }`}
-            >
-              {isVisible ? "Visible" : "Hidden"}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* Settings */}
-      <div className="px-4 py-3">
-        <h3 className="text-sm font-medium text-gray-900 mb-3">Settings</h3>
-        <div className="space-y-3">
-          {/* Theme Toggle */}
-          <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Palette className="w-4 h-4 text-purple-600" />
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-900">Theme</span>
-                <p className="text-xs text-gray-500 capitalize">
-                  {settings.theme}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleToggleTheme}
-              className="flex items-center space-x-2"
-            >
-              {settings.theme === "light" ? (
-                <ToggleLeft className="w-5 h-5 text-gray-400" />
-              ) : (
-                <ToggleRight className="w-5 h-5 text-primary-600" />
-              )}
-            </button>
-          </div>
-
-          {/* Auto Open Toggle */}
-          <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Settings className="w-4 h-4 text-orange-600" />
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-900">
-                  Auto Open
-                </span>
-                <p className="text-xs text-gray-500">
-                  {settings.autoOpen ? "Enabled" : "Disabled"}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleToggleAutoOpen}
-              className="flex items-center space-x-2"
-            >
-              {settings.autoOpen ? (
-                <ToggleRight className="w-5 h-5 text-primary-600" />
-              ) : (
-                <ToggleLeft className="w-5 h-5 text-gray-400" />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-gray-200 bg-white">
-        <div className="flex items-center justify-center space-x-2 text-xs text-gray-500">
-          <Info className="w-3 h-3" />
-          <span>Built with React + TypeScript</span>
-        </div>
+    <div className="w-full h-full bg-secondary text-foreground flex flex-col">
+      <Header
+        isActive={isActive}
+        onToggle={handleToggleActive}
+        statusMessage={statusMessage}
+        isSupported={isSupported}
+      />
+      <Tabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <div className="flex-1 overflow-y-auto">
+        {activeTab === "home" && (
+          <HomeTab
+            isRecording={isRecording}
+            isPaused={isPaused}
+            onStartRecording={handleStartRecording}
+            onStopRecording={handleStopRecording}
+            onPauseRecording={handlePauseRecording}
+            onResumeRecording={handleResumeRecording}
+            onToggleFloatPanel={handleToggleFloatPanel}
+            isFloatPanelVisible={isVisible}
+            todayRecords={stats.thisWeekRecords}
+            totalTime={stats.totalTime}
+            lastRecord={lastRecord}
+          />
+        )}
+        {activeTab === "records" && (
+          <RecordsTab
+            records={records}
+            onViewRecord={(id) => console.log("View:", id)}
+            onExportRecord={(id) => console.log("Export:", id)}
+            onDeleteRecord={handleDeleteRecord}
+            onSyncRecord={handleSyncRecord}
+          />
+        )}
+        {activeTab === "profile" && (
+          <ProfileTab
+            user={user}
+            settings={profileSettings}
+            stats={stats}
+            onSettingChange={handleSettingChange}
+            onExportData={handleExportData}
+          />
+        )}
       </div>
     </div>
   );

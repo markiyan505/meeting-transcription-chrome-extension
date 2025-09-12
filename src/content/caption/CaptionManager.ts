@@ -80,9 +80,8 @@ export class CaptionManager {
 
     try {
       const result = await this.adapter.enableCaptions();
-      if (result.success) {
-        this.emit("captions_enabled", { timestamp: new Date().toISOString() });
-      }
+      // Подія captions_enabled вже емітується в LiveCaptionsAdapter.enableCaptions()
+      // тому тут не потрібно дублювати
       return result;
     } catch (error) {
       return { success: false, error: `Failed to enable captions: ${error}` };
@@ -99,9 +98,8 @@ export class CaptionManager {
 
     try {
       const result = await this.adapter.disableCaptions();
-      if (result.success) {
-        this.emit("captions_disabled", { timestamp: new Date().toISOString() });
-      }
+      // Подія captions_disabled вже емітується в LiveCaptionsAdapter.disableCaptions()
+      // тому тут не потрібно дублювати
       return result;
     } catch (error) {
       return { success: false, error: `Failed to disable captions: ${error}` };
@@ -109,7 +107,23 @@ export class CaptionManager {
   }
 
   /**
-   * Починає запис субтитрів
+   * Перевіряє, чи працюють субтитри
+   */
+  async areCaptionsEnabled(): Promise<boolean> {
+    if (!this.adapter) {
+      return false;
+    }
+
+    try {
+      return await this.adapter.isCaptionsEnabled();
+    } catch (error) {
+      console.error("❌ [CAPTIONS] Failed to check captions status:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Починає запис субтитрів з перевіркою субтитрів
    */
   async startRecording(): Promise<OperationResult> {
     if (!this.adapter) {
@@ -117,10 +131,54 @@ export class CaptionManager {
     }
 
     try {
-      const result = await this.adapter.startRecording();
-      if (result.success) {
-        this.emit("recording_started", { timestamp: new Date().toISOString() });
+      // Перевіряємо, чи працюють субтитри
+      const captionsEnabled = await this.areCaptionsEnabled();
+
+      if (!captionsEnabled) {
+        console.log(
+          "⚠️ [CAPTIONS] Captions not enabled, attempting to enable..."
+        );
+
+        // Спробуємо увімкнути субтитри
+        const enableResult = await this.enableCaptions();
+
+        if (!enableResult.success) {
+          return {
+            success: false,
+            error: `Failed to enable captions: ${enableResult.error}`,
+            warning:
+              "Captions are not available. Recording may not capture subtitles.",
+          };
+        }
+
+        console.log("✅ [CAPTIONS] Captions enabled successfully");
+
+        // Затримка для того, щоб субтитри встигли завантажитися
+        console.log("⏳ [CAPTIONS] Waiting for captions to load...");
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 секунди
+
+        // Перевіряємо, чи субтитри дійсно працюють після затримки
+        const captionsStillEnabled = await this.areCaptionsEnabled();
+        if (!captionsStillEnabled) {
+          console.warn(
+            "⚠️ [CAPTIONS] Captions disabled after delay, but continuing..."
+          );
+        } else {
+          console.log("✅ [CAPTIONS] Captions confirmed working after delay");
+        }
+      } else {
+        
+        console.log("✅ [CAPTIONS] Captions already enabled");
+
+        // Невелика затримка для стабілізації навіть якщо субтитри вже увімкнені
+        console.log("⏳ [CAPTIONS] Stabilizing captions...");
+        await new Promise((resolve) => setTimeout(resolve, 500)); // 0.5 секунди
+        console.log("✅ [CAPTIONS] Captions stabilized");
       }
+
+      const result = await this.adapter.startRecording();
+      // Подія recording_started вже емітується в BaseAdapter.startRecording()
+      // тому тут не потрібно дублювати
       return result;
     } catch (error) {
       return { success: false, error: `Failed to start recording: ${error}` };
@@ -137,9 +195,8 @@ export class CaptionManager {
 
     try {
       const result = await this.adapter.stopRecording();
-      if (result.success) {
-        this.emit("recording_stopped", { timestamp: new Date().toISOString() });
-      }
+      // Подія recording_stopped вже емітується в BaseAdapter.stopRecording()
+      // тому тут не потрібно дублювати
       return result;
     } catch (error) {
       return { success: false, error: `Failed to stop recording: ${error}` };
@@ -156,9 +213,8 @@ export class CaptionManager {
 
     try {
       const result = await this.adapter.pauseRecording();
-      if (result.success) {
-        this.emit("recording_paused", { timestamp: new Date().toISOString() });
-      }
+      // Подія recording_paused вже емітується в BaseAdapter.pauseRecording()
+      // тому тут не потрібно дублювати
       return result;
     } catch (error) {
       return { success: false, error: `Failed to pause recording: ${error}` };
@@ -175,9 +231,8 @@ export class CaptionManager {
 
     try {
       const result = await this.adapter.resumeRecording();
-      if (result.success) {
-        this.emit("recording_resumed", { timestamp: new Date().toISOString() });
-      }
+      // Подія recording_resumed вже емітується в BaseAdapter.resumeRecording()
+      // тому тут не потрібно дублювати
       return result;
     } catch (error) {
       return { success: false, error: `Failed to resume recording: ${error}` };

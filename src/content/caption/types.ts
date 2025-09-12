@@ -76,6 +76,7 @@ export interface OperationResult {
   message?: string;
   data?: any;
   error?: string;
+  warning?: string;
 }
 
 // Конфігурація адаптера

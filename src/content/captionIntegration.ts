@@ -106,6 +106,28 @@ function setupCaptionEventHandlers() {
     startPeriodicBackups();
   });
 
+  // Обробник увімкнення субтитрів
+  captionManager.on("captions_enabled", (data: any) => {
+    console.log("📝 [CAPTIONS ENABLED]", {
+      timestamp: data.timestamp,
+      platform: getCurrentPlatformInfo().name,
+    });
+
+    logCaptionEvent("captions_enabled", data);
+    showCaptionNotification("Captions enabled", "success");
+  });
+
+  // Обробник вимкнення субтитрів
+  captionManager.on("captions_disabled", (data: any) => {
+    console.log("📝 [CAPTIONS DISABLED]", {
+      timestamp: data.timestamp,
+      platform: getCurrentPlatformInfo().name,
+    });
+
+    logCaptionEvent("captions_disabled", data);
+    showCaptionNotification("Captions disabled", "warning");
+  });
+
   captionManager.on("recording_stopped", (data: any) => {
     console.log("⏹️ [RECORDING STOPPED]", {
       timestamp: data.timestamp,
@@ -144,10 +166,10 @@ function setupCaptionEventHandlers() {
     // Зупиняємо періодичні бекапи
     stopPeriodicBackups();
 
-    // ДОДАТИ: Автоматичне збереження
-    if (data.captionCount > 0) {
-      saveCaptionDataToBackground(data);
-    }
+    // Автоматичне збереження (перевірка даних буде в saveCaptionDataToBackground)
+    (async () => {
+      await saveCaptionDataToBackground(data);
+    })();
   });
 
   captionManager.on("recording_paused", (data: any) => {
@@ -242,7 +264,16 @@ function setupCaptionEventHandlers() {
 /**
  * Оновлює статус бейджа розширення
  */
+// let lastBadgeStatus: boolean | null = null;
+
 function updateBadgeStatus(isRecording: boolean) {
+  // Уникаємо дублікатів повідомлень
+  // if (lastBadgeStatus === isRecording) {
+  //   return;
+  // }
+
+  // lastBadgeStatus = isRecording;
+
   try {
     chrome.runtime.sendMessage({
       type: "update_badge_status",
@@ -525,12 +556,19 @@ async function handleStartCaptionRecording(sendResponse: any) {
       success: result.success,
       message: result.message,
       error: result.error,
+      warning: result.warning,
     });
+
+    // Показуємо попередження про субтитри, якщо є
+    if (result.warning) {
+      showCaptionNotification(result.warning, "warning");
+    }
 
     sendResponse({
       success: result.success,
       data: result,
       error: result.error,
+      warning: result.warning,
     });
   } catch (error) {
     console.error("❌ [UI ACTION] Start recording failed:", error);
@@ -760,7 +798,11 @@ async function addBackupToHistory() {
     });
 
     if (response?.success) {
-      console.log("✅ [BACKUP] Backup added to history");
+      if (response.skipped) {
+        console.log("⚠️ [BACKUP] Backup skipped (no data):", response.reason);
+      } else {
+        console.log("✅ [BACKUP] Backup added to history");
+      }
     } else {
       console.error(
         "❌ [BACKUP] Failed to add backup to history:",
@@ -777,10 +819,14 @@ async function addBackupToHistory() {
  */
 export async function checkAndRecoverBackup() {
   try {
+    console.log("🔄 [RECOVERY] Checking backup recovery...");
+
     const response = await chrome.runtime.sendMessage({
       type: "check_backup_recovery",
       currentUrl: window.location.href,
     });
+
+    console.log("🔄 [RECOVERY] Backup recovery response:", response);
 
     if (response?.success && response.shouldRecover) {
       console.log("🔄 [RECOVERY] Recovering backup for same meeting:", {
@@ -792,16 +838,19 @@ export async function checkAndRecoverBackup() {
       // Відновлюємо дані
       if (captionManager) {
         captionManager.hydrate(response.data);
-
-        showCaptionNotification(
-          `Recovered ${
-            response.data?.captions?.length || 0
-          } captions from previous session`,
-          "success"
-        );
+        if (response.data?.captions?.length) {
+          showCaptionNotification(
+            `Recovered ${
+              response.data?.captions?.length || 0
+            } captions from previous session`,
+            "success"
+          );
+        }
       }
     } else if (response?.success && response.clearedBackup) {
       console.log("🧹 [CLEANUP] Cleared backup for different meeting");
+    } else {
+      console.log("🔄 [RECOVERY] No backup recovery");
     }
   } catch (error) {
     console.error("❌ [RECOVERY] Failed to check backup recovery:", error);
@@ -822,14 +871,25 @@ export function getCaptionManager(): any {
   return captionManager;
 }
 
+let lastSaveTime = 0;
+const SAVE_DEBOUNCE_MS = 1000; // 1 секунда
+
 async function saveCaptionDataToBackground(data: any) {
+  // Уникаємо дублікатів збереження
+  const now = Date.now();
+  if (now - lastSaveTime < SAVE_DEBOUNCE_MS) {
+    console.log("⏭️ [SAVE] Skipping duplicate save request");
+    return;
+  }
+  lastSaveTime = now;
+
   try {
     const captions = captionManager.getCaptions();
     const chatMessages = captionManager.getChatMessages();
     const meetingInfo = captionManager.getMeetingInfo();
     const recordingState = await captionManager.getRecordingState();
 
-    await chrome.runtime.sendMessage({
+    const response = await chrome.runtime.sendMessage({
       type: "save_caption_data",
       captions: captions,
       chatMessages: chatMessages,
@@ -838,9 +898,35 @@ async function saveCaptionDataToBackground(data: any) {
       recordingState: recordingState,
     });
 
-    console.log("✅ Caption data saved automatically");
+    if (response?.success) {
+      console.log("✅ [SAVE] Caption data saved automatically");
+    } else if (response?.skipped) {
+      console.log("⚠️ [SAVE] Recording skipped (no data):", response.reason);
+
+      // Показуємо повідомлення користувачу
+      showCaptionNotification(
+        response.message || "No data to save. Recording was empty.",
+        "warning"
+      );
+    } else {
+      console.error("❌ [SAVE] Failed to save caption data:", response?.error);
+
+      // Показуємо повідомлення про помилку
+      showCaptionNotification(
+        `Failed to save recording: ${response?.error || "Unknown error"}`,
+        "error"
+      );
+    }
   } catch (error) {
-    console.error("❌ Failed to save caption data:", error);
+    console.error("❌ [SAVE] Failed to save caption data:", error);
+
+    // Показуємо повідомлення про помилку
+    showCaptionNotification(
+      `Failed to save recording: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      "error"
+    );
   }
 }
 
