@@ -10,10 +10,15 @@ import {
   logCaptionEvent,
   handleCaptionError,
 } from "./caption/index";
+import { CaptionManager } from "./caption/CaptionManager";
+import { showCaptionNotification } from "./uiNotifier";
 
 // Глобальні змінні
+// let captionManager: CaptionManager | null = null;
 let captionManager: any = null;
 let isCaptionModuleInitialized = false;
+let backupInterval: NodeJS.Timeout | null = null;
+const BACKUP_INTERVAL_MS = 30000; // 30 секунд
 
 /**
  * Ініціалізує модуль субтитрів
@@ -26,7 +31,10 @@ export async function initializeCaptionModule() {
 
     function handleErrorOnce(details: any) {
       if (!isErrorNotificationShown) {
-        console.error(`A critical error occurred in ${details.context}:`, details.error);
+        console.error(
+          `A critical error occurred in ${details.context}:`,
+          details.error
+        );
         isErrorNotificationShown = true;
       }
     }
@@ -40,7 +48,6 @@ export async function initializeCaptionModule() {
       return;
     }
 
-    const recoveryData = await chrome.runtime.sendMessage({ type: "get_recovery_data" });
     // Створюємо менеджер субтитрів
     captionManager = await createCaptionManagerForCurrentPlatform({
       autoEnableCaptions: true,
@@ -49,13 +56,10 @@ export async function initializeCaptionModule() {
       operationMode: "automatic",
     });
 
-    captionManager.on('error', handleErrorOnce);
+    captionManager.on("error", handleErrorOnce);
 
-    if (recoveryData && recoveryData.shouldRecover) {
-      captionManager.hydrate(recoveryData.data);
-      // Можна показати нотифікацію користувачеві
-      console.log("Successfully recovered previous meeting data.");
-    }
+    // Перевіряємо та відновлюємо бекап при вході в зустріч
+    await checkAndRecoverBackup();
 
     // Налаштовуємо обробники подій
     setupCaptionEventHandlers();
@@ -97,6 +101,9 @@ function setupCaptionEventHandlers() {
     logCaptionEvent("recording_started", data);
     showCaptionNotification("Recording started", "info");
     updateBadgeStatus(true);
+
+    // Запускаємо періодичні бекапи
+    startPeriodicBackups();
   });
 
   captionManager.on("recording_stopped", (data: any) => {
@@ -134,6 +141,9 @@ function setupCaptionEventHandlers() {
     );
     updateBadgeStatus(false);
 
+    // Зупиняємо періодичні бекапи
+    stopPeriodicBackups();
+
     // ДОДАТИ: Автоматичне збереження
     if (data.captionCount > 0) {
       saveCaptionDataToBackground(data);
@@ -148,6 +158,9 @@ function setupCaptionEventHandlers() {
 
     logCaptionEvent("recording_paused", data);
     showCaptionNotification("Recording paused", "warning");
+
+    // Зупиняємо періодичні бекапи при паузі
+    stopPeriodicBackups();
   });
 
   captionManager.on("recording_resumed", (data: any) => {
@@ -158,6 +171,9 @@ function setupCaptionEventHandlers() {
 
     logCaptionEvent("recording_resumed", data);
     showCaptionNotification("Recording resumed", "info");
+
+    // Відновлюємо періодичні бекапи при резюме
+    startPeriodicBackups();
   });
 
   // Обробники подій субтитрів
@@ -224,58 +240,6 @@ function setupCaptionEventHandlers() {
 }
 
 /**
- * Показує повідомлення користувачу про стан субтитрів
- */
-function showCaptionNotification(
-  message: string,
-  type: "success" | "error" | "warning" | "info" = "info"
-) {
-  const notification = document.createElement("div");
-  notification.className = `caption-notification caption-notification-${type}`;
-  notification.textContent = message;
-
-  // Стилі для повідомлень
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    color: white;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    z-index: 10000;
-    max-width: 300px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transition: all 0.3s ease;
-  `;
-
-  // Кольори для різних типів повідомлень
-  const colors = {
-    success: "#10B981",
-    error: "#EF4444",
-    warning: "#F59E0B",
-    info: "#3B82F6",
-  };
-
-  notification.style.backgroundColor = colors[type] || colors.info;
-
-  document.body.appendChild(notification);
-
-  // Автоматично прибираємо повідомлення через 5 секунд
-  setTimeout(() => {
-    notification.style.opacity = "0";
-    notification.style.transform = "translateX(100%)";
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 300);
-  }, 5000);
-}
-
-/**
  * Оновлює статус бейджа розширення
  */
 function updateBadgeStatus(isRecording: boolean) {
@@ -286,6 +250,87 @@ function updateBadgeStatus(isRecording: boolean) {
     });
   } catch (error) {
     // Ігноруємо помилки, якщо розширення не доступне
+  }
+}
+
+/**
+ * Створює бекап поточних даних сесії
+ */
+async function backupCurrentSession() {
+  if (!captionManager || !isCaptionModuleInitialized) {
+    return;
+  }
+
+  try {
+    const captions = captionManager.getCaptions();
+    const chatMessages = captionManager.getChatMessages();
+    const meetingInfo = captionManager.getMeetingInfo();
+    const recordingState = await captionManager.getRecordingState();
+
+    // Отримуємо attendeeReport якщо доступний
+    let attendeeReport = null;
+    try {
+      if (captionManager.getAttendeeReport) {
+        attendeeReport = await captionManager.getAttendeeReport();
+      }
+    } catch (error) {
+      console.warn("⚠️ [BACKUP] Could not get attendee report:", error);
+    }
+
+    const backupData = {
+      captions,
+      chatMessages,
+      meetingInfo,
+      attendeeReport,
+      recordingState,
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+      title: document.title,
+    };
+
+    const response = await chrome.runtime.sendMessage({
+      type: "backup_caption_data",
+      data: backupData,
+    });
+
+    if (response?.success) {
+      console.log("💾 [BACKUP] Session data backed up successfully", {
+        captionCount: captions.length,
+        chatMessageCount: chatMessages.length,
+        timestamp: backupData.timestamp,
+        backupId: response.backupId,
+      });
+    } else {
+      console.error("❌ [BACKUP] Backup failed:", response?.error);
+    }
+  } catch (error) {
+    console.error("❌ [BACKUP] Failed to backup session data:", error);
+  }
+}
+
+/**
+ * Запускає періодичні бекапи
+ */
+function startPeriodicBackups() {
+  if (backupInterval) {
+    clearInterval(backupInterval);
+  }
+
+  backupInterval = setInterval(() => {
+    backupCurrentSession();
+  }, BACKUP_INTERVAL_MS);
+
+  console.log("🔄 [BACKUP] Periodic backups started (every 30 seconds)");
+}
+
+/**
+ * Зупиняє періодичні бекапи
+ */
+function stopPeriodicBackups() {
+  if (backupInterval) {
+    clearInterval(backupInterval);
+    backupInterval = null;
+    console.log("⏹️ [BACKUP] Periodic backups stopped");
   }
 }
 
@@ -672,6 +717,9 @@ async function handleClearCaptionData(sendResponse: any) {
 export async function cleanupCaptionModule() {
   if (captionManager) {
     try {
+      // Зупиняємо періодичні бекапи
+      stopPeriodicBackups();
+
       await captionManager.cleanup();
       captionManager = null;
       isCaptionModuleInitialized = false;
@@ -682,6 +730,81 @@ export async function cleanupCaptionModule() {
         "cleanup"
       );
     }
+  }
+}
+
+/**
+ * Примусово створює бекап поточної сесії. Використовується при закритті вкладки.
+ * Зберігає дані в BACKUP для можливого продовження запису.
+ */
+export async function triggerAutoSave() {
+  if (captionManager) {
+    const state = await captionManager.getRecordingState();
+    if ((state.isRecording || state.isPaused) && state.captionCount > 0) {
+      console.log("Triggering backup on page unload...");
+      await backupCurrentSession();
+
+      // Додаємо бекап в історію як останній запис
+      await addBackupToHistory();
+    }
+  }
+}
+
+/**
+ * Додає бекап в історію як останній запис
+ */
+async function addBackupToHistory() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "add_backup_to_history",
+    });
+
+    if (response?.success) {
+      console.log("✅ [BACKUP] Backup added to history");
+    } else {
+      console.error(
+        "❌ [BACKUP] Failed to add backup to history:",
+        response?.error
+      );
+    }
+  } catch (error) {
+    console.error("❌ [BACKUP] Failed to add backup to history:", error);
+  }
+}
+
+/**
+ * Перевіряє та відновлює бекап при вході в зустріч
+ */
+export async function checkAndRecoverBackup() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "check_backup_recovery",
+      currentUrl: window.location.href,
+    });
+
+    if (response?.success && response.shouldRecover) {
+      console.log("🔄 [RECOVERY] Recovering backup for same meeting:", {
+        source: response.source,
+        captionCount: response.data?.captions?.length || 0,
+        meetingUrl: response.data?.url,
+      });
+
+      // Відновлюємо дані
+      if (captionManager) {
+        captionManager.hydrate(response.data);
+
+        showCaptionNotification(
+          `Recovered ${
+            response.data?.captions?.length || 0
+          } captions from previous session`,
+          "success"
+        );
+      }
+    } else if (response?.success && response.clearedBackup) {
+      console.log("🧹 [CLEANUP] Cleared backup for different meeting");
+    }
+  } catch (error) {
+    console.error("❌ [RECOVERY] Failed to check backup recovery:", error);
   }
 }
 
@@ -704,6 +827,7 @@ async function saveCaptionDataToBackground(data: any) {
     const captions = captionManager.getCaptions();
     const chatMessages = captionManager.getChatMessages();
     const meetingInfo = captionManager.getMeetingInfo();
+    const recordingState = await captionManager.getRecordingState();
 
     await chrome.runtime.sendMessage({
       type: "save_caption_data",
@@ -711,6 +835,7 @@ async function saveCaptionDataToBackground(data: any) {
       chatMessages: chatMessages,
       meetingInfo: meetingInfo,
       attendeeReport: data.attendeeReport || null,
+      recordingState: recordingState,
     });
 
     console.log("✅ Caption data saved automatically");

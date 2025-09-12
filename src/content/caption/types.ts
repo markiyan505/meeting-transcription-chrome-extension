@@ -34,6 +34,20 @@ export interface HydrationData {
   meetingInfo: MeetingInfo;
 }
 
+// Уніфіковані дані сесії для збереження та бекапу
+export interface SessionData {
+  id: string;
+  timestamp: string;
+  url: string;
+  title: string;
+  captions: CaptionEntry[];
+  chatMessages: ChatMessage[];
+  meetingInfo: MeetingInfo;
+  attendeeReport: any | null;
+  recordingState: RecordingState | string;
+  isBackup?: boolean;
+}
+
 // Стан запису
 export interface RecordingState {
   isRecording: boolean;

@@ -4,8 +4,9 @@ console.log("Background script loaded");
 // Caption data storage keys
 const CAPTION_STORAGE_KEYS = {
   HISTORY: "captionHistory",
-  CURRENT_SESSION: "currentCaptionSession",
+  LAST_SESSION: "currentCaptionSession",
   SETTINGS: "captionSettings",
+  BACKUP: "captionBackup",
 } as const;
 
 // Handle extension installation
@@ -73,6 +74,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       handleSaveCaptionData(message, _sender, sendResponse);
       return true; // Keep message channel open
 
+    case "backup_caption_data":
+      handleBackupCaptionData(message, _sender, sendResponse);
+      return true; // Keep message channel open
+
     case "get_caption_history":
       handleGetCaptionHistory(sendResponse);
       return true; // Keep message channel open
@@ -83,6 +88,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case "export_caption_data":
       handleExportCaptionData(message, _sender, sendResponse);
+      return true; // Keep message channel open
+
+    case "add_backup_to_history":
+      handleAddBackupToHistory(sendResponse);
+      return true; // Keep message channel open
+
+    case "check_backup_recovery":
+      handleCheckBackupRecovery(message, _sender, sendResponse);
       return true; // Keep message channel open
 
     default:
@@ -136,20 +149,11 @@ async function handleSaveCaptionData(
   sendResponse: (response: any) => void
 ) {
   try {
-    const sessionData = {
-      id: generateSessionId(),
-      timestamp: new Date().toISOString(),
-      url: sender.tab?.url || "unknown",
-      title: sender.tab?.title || "Unknown Meeting",
-      captions: message.captions || [],
-      chatMessages: message.chatMessages || [],
-      meetingInfo: message.meetingInfo || {},
-      attendeeReport: message.attendeeReport || null,
-    };
+    const sessionData = createSessionData(message, sender, false);
 
     // Save current session
     await chrome.storage.local.set({
-      [CAPTION_STORAGE_KEYS.CURRENT_SESSION]: sessionData,
+      [CAPTION_STORAGE_KEYS.LAST_SESSION]: sessionData,
     });
 
     // Add to history
@@ -161,10 +165,83 @@ async function handleSaveCaptionData(
       [CAPTION_STORAGE_KEYS.HISTORY]: updatedHistory,
     });
 
+    // Очищаємо бекап після успішного збереження
+    await chrome.storage.local.remove(CAPTION_STORAGE_KEYS.BACKUP);
+
     console.log("Caption data saved:", sessionData.id);
     sendResponse({ success: true, sessionId: sessionData.id });
   } catch (error) {
     console.error("Failed to save caption data:", error);
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function handleBackupCaptionData(
+  message: any,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response: any) => void
+) {
+  try {
+    const backupData = createSessionData(message, sender, true);
+
+    // Зберігаємо бекап, замінюючи попередній бекап для цієї сесії
+    await chrome.storage.local.set({
+      [CAPTION_STORAGE_KEYS.BACKUP]: backupData,
+    });
+
+    console.log("💾 [BACKUP] Caption data backed up:", {
+      id: backupData.id,
+      captionCount: backupData.captions.length,
+      chatMessageCount: backupData.chatMessages.length,
+      timestamp: backupData.timestamp,
+    });
+
+    sendResponse({ success: true, backupId: backupData.id });
+  } catch (error) {
+    console.error("❌ [BACKUP] Failed to backup caption data:", error);
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function handleGetRecoveryData(sendResponse: (response: any) => void) {
+  try {
+    // Спочатку перевіряємо наявність бекапу
+    const { [CAPTION_STORAGE_KEYS.BACKUP]: backupData } =
+      await chrome.storage.local.get(CAPTION_STORAGE_KEYS.BACKUP);
+
+    if (backupData) {
+      console.log("🔄 [RECOVERY] Found backup data:", {
+        id: backupData.id,
+        captionCount: backupData.captions?.length || 0,
+        chatMessageCount: backupData.chatMessages?.length || 0,
+        timestamp: backupData.timestamp,
+      });
+
+      sendResponse({
+        success: true,
+        shouldRecover: true,
+        data: backupData,
+        source: "backup",
+      });
+      return;
+    }
+
+    // Немає даних для відновлення
+    console.log("🔄 [RECOVERY] No data found for recovery");
+    sendResponse({
+      success: true,
+      shouldRecover: false,
+      data: null,
+      source: "none",
+    });
+  } catch (error) {
+    console.error("❌ [RECOVERY] Failed to get recovery data:", error);
     sendResponse({
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -192,7 +269,7 @@ async function handleClearCaptionHistory(
   try {
     await chrome.storage.local.remove([
       CAPTION_STORAGE_KEYS.HISTORY,
-      CAPTION_STORAGE_KEYS.CURRENT_SESSION,
+      CAPTION_STORAGE_KEYS.LAST_SESSION,
     ]);
     console.log("Caption history cleared");
     sendResponse({ success: true });
@@ -221,8 +298,8 @@ async function handleExportCaptionData(
       sessionData = history.find((session: any) => session.id === sessionId);
     } else {
       // Get current session
-      const { [CAPTION_STORAGE_KEYS.CURRENT_SESSION]: current } =
-        await chrome.storage.local.get(CAPTION_STORAGE_KEYS.CURRENT_SESSION);
+      const { [CAPTION_STORAGE_KEYS.LAST_SESSION]: current } =
+        await chrome.storage.local.get(CAPTION_STORAGE_KEYS.LAST_SESSION);
       sessionData = current;
     }
 
@@ -312,4 +389,174 @@ function formatSRTTime(date: Date): string {
 
 function generateSessionId(): string {
   return `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/**
+ * Створює уніфіковані дані сесії для збереження або бекапу
+ */
+function createSessionData(
+  message: any,
+  sender: chrome.runtime.MessageSender,
+  isBackup: boolean = false
+) {
+  const baseData = {
+    id: generateSessionId(),
+    timestamp: new Date().toISOString(),
+    url: sender.tab?.url || message.data?.url || message.url || "unknown",
+    title:
+      sender.tab?.title ||
+      message.data?.title ||
+      message.title ||
+      "Unknown Meeting",
+    captions: message.data?.captions || message.captions || [],
+    chatMessages: message.data?.chatMessages || message.chatMessages || [],
+    meetingInfo: message.data?.meetingInfo || message.meetingInfo || {},
+    attendeeReport:
+      message.data?.attendeeReport || message.attendeeReport || null,
+    recordingState:
+      message.data?.recordingState ||
+      message.recordingState ||
+      (isBackup ? "unknown" : "recording"),
+  };
+
+  if (isBackup) {
+    return {
+      ...baseData,
+      isBackup: true,
+    };
+  }
+
+  return baseData;
+}
+
+/**
+ * Додає бекап в історію як останній запис
+ */
+async function handleAddBackupToHistory(sendResponse: (response: any) => void) {
+  try {
+    const { [CAPTION_STORAGE_KEYS.BACKUP]: backupData } =
+      await chrome.storage.local.get(CAPTION_STORAGE_KEYS.BACKUP);
+
+    if (backupData) {
+      // Додаємо бекап в історію
+      const { [CAPTION_STORAGE_KEYS.HISTORY]: history = [] } =
+        await chrome.storage.local.get(CAPTION_STORAGE_KEYS.HISTORY);
+
+      const updatedHistory = [backupData, ...history].slice(0, 50);
+
+      await chrome.storage.local.set({
+        [CAPTION_STORAGE_KEYS.HISTORY]: updatedHistory,
+      });
+
+      console.log("✅ [BACKUP] Backup added to history:", backupData.id);
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false, error: "No backup data found" });
+    }
+  } catch (error) {
+    console.error("❌ [BACKUP] Failed to add backup to history:", error);
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Перевіряє та відновлює бекап при вході в зустріч
+ */
+async function handleCheckBackupRecovery(
+  message: any,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response: any) => void
+) {
+  try {
+    const { [CAPTION_STORAGE_KEYS.BACKUP]: backupData } =
+      await chrome.storage.local.get(CAPTION_STORAGE_KEYS.BACKUP);
+
+    if (!backupData) {
+      sendResponse({ success: true, shouldRecover: false });
+      return;
+    }
+
+    const currentUrl = message.currentUrl || sender.tab?.url || "unknown";
+    const backupUrl = backupData.url;
+
+    // Перевіряємо, чи це та ж зустріч (порівнюємо URL)
+    const isSameMeeting = isSameMeetingUrl(currentUrl, backupUrl);
+
+    if (isSameMeeting) {
+      // Та ж зустріч - відновлюємо та видаляємо з історії
+      await removeBackupFromHistory(backupData.id);
+
+      console.log("🔄 [RECOVERY] Recovering backup for same meeting:", {
+        currentUrl,
+        backupUrl,
+        captionCount: backupData.captions?.length || 0,
+      });
+
+      sendResponse({
+        success: true,
+        shouldRecover: true,
+        data: backupData,
+        source: "backup",
+      });
+    } else {
+      // Інша зустріч - просто видаляємо бекап
+      await chrome.storage.local.remove(CAPTION_STORAGE_KEYS.BACKUP);
+
+      console.log("🧹 [CLEANUP] Cleared backup for different meeting:", {
+        currentUrl,
+        backupUrl,
+      });
+
+      sendResponse({
+        success: true,
+        shouldRecover: false,
+        clearedBackup: true,
+      });
+    }
+  } catch (error) {
+    console.error("❌ [RECOVERY] Failed to check backup recovery:", error);
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Перевіряє, чи це та ж зустріч за URL
+ */
+function isSameMeetingUrl(currentUrl: string, backupUrl: string): boolean {
+  try {
+    const current = new URL(currentUrl);
+    const backup = new URL(backupUrl);
+
+    // Порівнюємо домен та шлях (без query параметрів)
+    return (
+      current.hostname === backup.hostname &&
+      current.pathname === backup.pathname
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Видаляє бекап з історії за ID
+ */
+async function removeBackupFromHistory(backupId: string) {
+  const { [CAPTION_STORAGE_KEYS.HISTORY]: history = [] } =
+    await chrome.storage.local.get(CAPTION_STORAGE_KEYS.HISTORY);
+
+  const updatedHistory = history.filter(
+    (session: any) => session.id !== backupId
+  );
+
+  await chrome.storage.local.set({
+    [CAPTION_STORAGE_KEYS.HISTORY]: updatedHistory,
+  });
+
+  console.log("🗑️ [CLEANUP] Removed backup from history:", backupId);
 }

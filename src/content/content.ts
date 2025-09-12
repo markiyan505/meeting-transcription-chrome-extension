@@ -13,6 +13,7 @@ import {
   initializeCaptionModule,
   handleCaptionMessages,
   cleanupCaptionModule,
+  triggerAutoSave,
 } from "./captionIntegration";
 
 // Setup message handlers
@@ -24,7 +25,11 @@ createFloatPanel(CONTROL_PANEL);
 // createFloatPanel(SUBTITLES_PANEL);
 
 // Налаштовуємо обробники подій
-window.addEventListener("beforeunload", cleanupCaptionModule);
+window.addEventListener("beforeunload", async (event) => {
+  await triggerAutoSave();
+  cleanupCaptionModule();
+});
+
 window.addEventListener("unload", cleanupCaptionModule);
 
 // Налаштовуємо обробник повідомлень від розширення для субтитрів
