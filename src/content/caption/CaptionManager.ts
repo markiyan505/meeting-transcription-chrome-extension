@@ -13,6 +13,7 @@ import {
   OperationResult,
   CaptionEvent,
   ExportFormat,
+  HydrationData,
 } from "./types";
 
 export class CaptionManager {
@@ -40,9 +41,11 @@ export class CaptionManager {
 
       return result;
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: `Failed to initialize caption manager: ${error}`,
+        error: `Failed to initialize caption manager: ${errorMessage}`,
       };
     }
   }
@@ -285,7 +288,9 @@ export class CaptionManager {
       this.emit("cleanup_completed", { timestamp: new Date().toISOString() });
       return result;
     } catch (error) {
-      return { success: false, error: `Failed to cleanup: ${error}` };
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return { success: false, error: `Failed to cleanup: ${errorMessage}` };
     }
   }
 
@@ -353,6 +358,16 @@ export class CaptionManager {
     this.adapter.on("recording_resumed", (data) =>
       this.emit("recording_resumed", data)
     );
+    this.adapter.on("attendees_updated", (data) =>
+      this.emit("attendees_updated", data)
+    );
+    this.adapter.on("meeting_started", (data) =>
+      this.emit("meeting_started", data)
+    );
+    this.adapter.on("meeting_ended", (data) =>
+      this.emit("meeting_ended", data)
+    );
+    this.adapter.on("error", (data) => this.emit("error", data));
   }
 
   /**
@@ -377,5 +392,16 @@ export class CaptionManager {
    */
   get currentAdapter(): CaptionAdapter | null {
     return this.adapter;
+  }
+
+  /**
+   * Наповнює стан менеджера даними з попередньої сесії
+   */
+  public hydrate(data: HydrationData): void {
+    if (!this.adapter) {
+      console.error("Cannot hydrate: adapter is not initialized.");
+      return;
+    }
+    this.adapter.hydrate(data);
   }
 }

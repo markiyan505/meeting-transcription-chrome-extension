@@ -22,6 +22,15 @@ export async function initializeCaptionModule() {
   try {
     logCaptionEvent("initialization_started", { url: window.location.href });
 
+    let isErrorNotificationShown = false;
+
+    function handleErrorOnce(details: any) {
+      if (!isErrorNotificationShown) {
+        console.error(`A critical error occurred in ${details.context}:`, details.error);
+        isErrorNotificationShown = true;
+      }
+    }
+
     // Перевіряємо, чи підтримується поточна платформа
     if (!isCurrentPlatformSupported()) {
       const platformInfo = getCurrentPlatformInfo();
@@ -31,6 +40,7 @@ export async function initializeCaptionModule() {
       return;
     }
 
+    const recoveryData = await chrome.runtime.sendMessage({ type: "get_recovery_data" });
     // Створюємо менеджер субтитрів
     captionManager = await createCaptionManagerForCurrentPlatform({
       autoEnableCaptions: true,
@@ -38,6 +48,14 @@ export async function initializeCaptionModule() {
       trackAttendees: true,
       operationMode: "automatic",
     });
+
+    captionManager.on('error', handleErrorOnce);
+
+    if (recoveryData && recoveryData.shouldRecover) {
+      captionManager.hydrate(recoveryData.data);
+      // Можна показати нотифікацію користувачеві
+      console.log("Successfully recovered previous meeting data.");
+    }
 
     // Налаштовуємо обробники подій
     setupCaptionEventHandlers();

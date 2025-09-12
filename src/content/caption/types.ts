@@ -27,6 +27,13 @@ export interface MeetingInfo {
   platform: "google-meet" | "teams" | "unknown";
 }
 
+// Дані для відновлення сесії
+export interface HydrationData {
+  captions: CaptionEntry[];
+  chatMessages: ChatMessage[];
+  meetingInfo: MeetingInfo;
+}
+
 // Стан запису
 export interface RecordingState {
   isRecording: boolean;
@@ -74,15 +81,18 @@ export interface CaptionEvent {
     | "recording_started"
     | "recording_stopped"
     | "recording_paused"
-    | "recording_resumed";
+    | "recording_resumed"
+    | "hydrated"
+    | "error";
   data: any;
   timestamp: string;
 }
 
 // Універсальний інтерфейс для адаптерів
 export interface CaptionAdapter {
-  // Ініціалізація
+  // Ініціалізація та відновлення
   initialize(): Promise<OperationResult>;
+  hydrate(data: HydrationData): void; // <-- ДОДАНО
 
   // Перевірка стану
   isCaptionsEnabled(): Promise<boolean>;
