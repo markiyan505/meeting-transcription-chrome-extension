@@ -2,7 +2,7 @@ import React from "react";
 import { LucideIcon } from "lucide-react";
 import { Typography } from "@/components/shared/ui/typography";
 import { Toggle } from "@/components/shared/ui/toggle/Toggle";
-import { Panel } from "@/components/shared/ui/Panel/Panel";
+import { Panel } from "@/components/shared/ui/panel/Panel";
 
 interface SettingItemProps {
   key: string;

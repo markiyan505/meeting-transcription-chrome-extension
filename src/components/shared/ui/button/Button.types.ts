@@ -27,5 +27,4 @@ export type ButtonVariant =
   | "info";
 
 export type ButtonSize = "sm" | "default" | "lg" | "xl";
-
 export type ButtonShape = "default" | "rounded" | "pill" | "square";

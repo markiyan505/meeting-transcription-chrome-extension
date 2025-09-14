@@ -6,11 +6,11 @@ import { StatusIndicatorProps } from "./StatusIndicator.types";
 const statusIndicatorVariants = cva("flex items-center space-x-2 text-xs", {
   variants: {
     status: {
-      success: "text-green-500",
-      error: "text-red-500",
-      warning: "text-yellow-500",
-      info: "text-blue-500",
-      neutral: "text-gray-500",
+      success: "text-success",
+      error: "text-destructive",
+      warning: "text-warning",
+      info: "text-info",
+      neutral: "text-muted-foreground",
     },
   },
   defaultVariants: {

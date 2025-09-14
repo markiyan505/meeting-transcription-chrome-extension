@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Clock, RefreshCw } from "lucide-react";
 import { Typography } from "@/components/shared/ui/typography";
 import { Button } from "@/components/shared/ui/button/Button";
-import { Panel } from "@/components/shared/ui/Panel/Panel";
-import { Icon } from "@/components/shared/ui/Icon/Icon";
+import { Panel } from "@/components/shared/ui/panel/Panel";
+import { Icon } from "@/components/shared/ui/icon/Icon";
 
 interface TokenStatusProps {
   tokenExpiration?: Date | null;
@@ -93,7 +93,9 @@ const TokenStatus: React.FC<TokenStatusProps> = ({
           </div>
           <Typography
             variant="caption"
-            color={timeUntilExpiration === "Expired" ? "danger" : "default"}
+            color={
+              timeUntilExpiration === "Expired" ? "destructive" : "default"
+            }
             className="font-medium"
           >
             {timeUntilExpiration}

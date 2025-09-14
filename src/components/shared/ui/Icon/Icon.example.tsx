@@ -51,7 +51,7 @@ export const IconExamples: React.FC = () => {
           <Icon icon={Settings} color="primary" tooltip="Primary" />
           <Icon icon={Settings} color="success" tooltip="Success" />
           <Icon icon={Settings} color="warning" tooltip="Warning" />
-          <Icon icon={Settings} color="danger" tooltip="Danger" />
+          <Icon icon={Settings} color="destructive" tooltip="Destructive" />
           <Icon icon={Settings} color="muted" tooltip="Muted" />
           <Icon icon={Settings} color="accent" tooltip="Accent" />
         </div>

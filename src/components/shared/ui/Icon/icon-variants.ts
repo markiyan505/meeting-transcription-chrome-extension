@@ -13,9 +13,9 @@ export const iconVariants = cva(
       color: {
         default: "text-foreground",
         primary: "text-primary",
-        success: "text-green-600",
-        warning: "text-yellow-600",
-        danger: "text-red-600",
+        success: "text-success",
+        warning: "text-warning",
+        destructive: "text-destructive",
         muted: "text-muted-foreground",
         accent: "text-accent-foreground",
       },

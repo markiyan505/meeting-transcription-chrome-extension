@@ -5,9 +5,9 @@ export const toggleVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-gray-200 hover:bg-gray-300 data-[state=on]:bg-gray-800",
-        dark: "bg-gray-800 hover:bg-gray-700",
-        light: "bg-gray-200 hover:bg-gray-300",
+        default: "bg-muted hover:bg-muted/80 data-[state=on]:bg-primary",
+        dark: "bg-muted hover:bg-muted/80 data-[state=on]:bg-primary",
+        light: "bg-muted hover:bg-muted/80 data-[state=on]:bg-primary",
       },
       size: {
         sm: "h-5 w-9",
@@ -32,9 +32,9 @@ export const thumbVariants = cva(
         lg: "h-5 w-5",
       },
       variant: {
-        default: "bg-white",
-        dark: "bg-white",
-        light: "bg-gray-800",
+        default: "bg-background data-[state=on]:bg-primary-foreground",
+        dark: "bg-background data-[state=on]:bg-primary-foreground",
+        light: "bg-background data-[state=on]:bg-primary-foreground",
       },
     },
     defaultVariants: {

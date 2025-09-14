@@ -105,3 +105,9 @@ temp/
 
 # Vite
 .vite/
+
+# Export scripts and generated files
+scripts/
+project_snapshot.txt
+export_config.txt
+export_project.*

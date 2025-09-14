@@ -21,6 +21,6 @@ export type IconColor =
   | "primary"
   | "success"
   | "warning"
-  | "danger"
+  | "destructive"
   | "muted"
   | "accent";

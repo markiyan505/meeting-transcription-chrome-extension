@@ -19,7 +19,7 @@ export const inputVariants = cva(
         false: "",
       },
       error: {
-        true: "border-red-500 focus:ring-red-500",
+        true: "border-destructive focus:ring-destructive",
         false: "",
       },
       hasLeftIcon: {
@@ -77,7 +77,7 @@ export const inputVariants = cva(
 export const helperTextVariants = cva("text-xs mt-1", {
   variants: {
     error: {
-      true: "text-red-500",
+      true: "text-destructive",
       false: "text-muted-foreground",
     },
   },

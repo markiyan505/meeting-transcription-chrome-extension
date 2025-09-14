@@ -2,8 +2,8 @@ import React from "react";
 import { Zap, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Toggle } from "@/components/shared/ui/toggle/Toggle";
 import { Typography } from "@/components/shared/ui/typography";
-import { Icon } from "@/components/shared/ui/Icon/Icon";
-import { Panel } from "@/components/shared/ui/Panel/Panel";
+import { Icon } from "@/components/shared/ui/icon/Icon";
+import { Panel } from "@/components/shared/ui/panel/Panel";
 
 interface HeaderProps {
   isActive: boolean;
@@ -48,14 +48,17 @@ const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center w-14 gap-1">
             <div
               className={`w-2 h-2 rounded-full ${
-                isActive ? "bg-green-500" : "bg-muted-foreground"
+                isActive ? "bg-success" : "bg-muted-foreground"
               }`}
             ></div>
-            <Typography variant="caption" color={isActive ? "success" : "muted"}>
+            <Typography
+              variant="caption"
+              color={isActive ? "success" : "muted"}
+            >
               {statusText}
             </Typography>
           </div>
-          
+
           {!isSupported && (
             <div className="flex items-center space-x-1">
               <Icon icon={AlertCircle} color="warning" />
@@ -69,13 +72,13 @@ const Header: React.FC<HeaderProps> = ({
           v1.0.0
         </Typography>
       </div>
-      {/* {statusMessage && (
+      {statusMessage && (
         <Panel variant="warning" size="sm">
           <Typography variant="caption" color="warning">
-              {statusMessage}
+            {statusMessage}
           </Typography>
         </Panel>
-      )} */}
+      )}
     </div>
   );
 };

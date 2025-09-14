@@ -2,12 +2,19 @@ import React, { useState, useEffect } from "react";
 import { useExtensionStore } from "@/store/useExtensionStore";
 import { useFloatPanelStore } from "@/store/useFloatPanelStore";
 
-import type { TabType } from "./components/Tabs";
+import type { TabType } from "./components/tabs/Tabs";
 import Header from "./components/Header";
-import Tabs from "./components/Tabs";
-import HomeTab from "./components/HomeTab";
-import RecordsTab from "./components/RecordsTab";
-import ProfileTab from "./components/ProfileTab";
+import Tabs from "./components/tabs/Tabs";
+import HomeTab from "./components/tabs/HomeTab";
+import RecordsTab from "./components/tabs/RecordsTab";
+import ProfileTab from "./components/tabs/ProfileTab";
+import {
+  mockData,
+  type MockRecord,
+  type MockUser,
+  type MockProfileSettings,
+  type MockStats,
+} from "./data/mockData";
 
 const PopupApp: React.FC = () => {
   const { isActive, settings, setActive, setTheme } = useExtensionStore();
@@ -19,98 +26,14 @@ const PopupApp: React.FC = () => {
   const [isSupported, setIsSupported] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string>("");
 
-  // Mock data based on existing interfaces
-  const [records, setRecords] = useState([
-    {
-      id: "1",
-      title: "Project Discussion",
-      time: "2024-01-15 14:30",
-      duration: "1h 25m",
-      platform: "google-meet" as const,
-      isSynced: true,
-      captionCount: 245,
-      attendeeCount: 8,
-      messageCount: 10,
-    },
-    {
-      id: "2",
-      title: "Client Presentation",
-      time: "2024-01-14 10:15",
-      duration: "45m",
-      platform: "teams" as const,
-      isSynced: false,
-      captionCount: 180,
-      attendeeCount: 5,
-      messageCount: 10,
-    },
-    {
-      id: "3",
-      title: "Daily Standup",
-      time: "2024-01-13 09:00",
-      duration: "30m",
-      platform: "google-meet" as const,
-      isSynced: true,
-      captionCount: 95,
-      attendeeCount: 12,
-      messageCount: 10,
-    },
-    {
-      id: "4",
-      title: "Sprint Planning",
-      time: "2024-01-12 15:00",
-      duration: "2h 10m",
-      platform: "teams" as const,
-      isSynced: true,
-      captionCount: 320,
-      attendeeCount: 15,
-      messageCount: 10,
-    },
-    {
-      id: "5",
-      title: "Code Review Session",
-      time: "2024-01-11 11:30",
-      duration: "1h 15m",
-      platform: "google-meet" as const,
-      isSynced: false,
-      captionCount: 150,
-      attendeeCount: 6,
-      messageCount: 10,
-    },
-  ]);
-
-  const [user] = useState({
-    name: "John Doe",
-    email: "john.doe@example.com",
-    avatar: undefined,
-  });
-
-  const [profileSettings, setProfileSettings] = useState({
-    autoStart: false,
-    autoEnableCaptions: true,
-    allowAutoEnable: true,
+  // Mock data from external file
+  const [records, setRecords] = useState<MockRecord[]>(mockData.records);
+  const [user] = useState<MockUser>(mockData.user);
+  const [profileSettings, setProfileSettings] = useState<MockProfileSettings>({
+    ...mockData.profileSettings,
     theme: settings.theme,
-    notifications: true,
   });
-
-  const [stats] = useState({
-    totalRecords: 47,
-    totalTime: "23h 45m",
-    averageTime: "1h 12m",
-    thisWeekRecords: 8,
-    thisMonthRecords: 23,
-    platformStats: {
-      googleMeet: {
-        totalMeetings: 28,
-        totalDuration: "14h 30m",
-        averageDuration: "1h 15m",
-      },
-      teams: {
-        totalMeetings: 19,
-        totalDuration: "9h 15m",
-        averageDuration: "1h 8m",
-      },
-    },
-  });
+  const [stats] = useState<MockStats>(mockData.stats);
 
   useEffect(() => {
     const checkSiteSupport = async () => {

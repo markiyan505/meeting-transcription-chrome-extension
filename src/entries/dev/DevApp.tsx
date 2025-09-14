@@ -4,10 +4,9 @@ import FloatPanelSubtitles from "@/components/features/subtitles-panel/FloatPane
 import PopupApp from "@/components/features/popup-panel/PopupApp";
 import { ButtonExamples } from "@/components/shared/ui/button/Button.example";
 import { ToggleExamples } from "@/components/shared/ui/toggle/Toggle.example";
-import { IconExamples } from "@/components/shared/ui/Icon/Icon.example";
-import { InputExamples } from "@/components/shared/ui/Input/Input.example";
-import { SelectExample } from "@/components/shared/ui/Select/Select.example";
-import { DropdownSelectExample } from "@/components/shared/ui/DropdownSelect/DropdownSelect.example";
+import { IconExamples } from "@/components/shared/ui/icon/Icon.example";
+import { InputExamples } from "@/components/shared/ui/input/Input.example";
+import { DropdownSelectExample } from "@/components/shared/ui/dropdown-select/DropdownSelect.example";
 
 const DevApp: React.FC = () => {
   const [showPopup, setShowPopup] = useState(true);
@@ -168,16 +167,6 @@ const DevApp: React.FC = () => {
         {showInputs && (
           <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
             <InputExamples />
-          </div>
-        )}
-
-        {/* Select Examples */}
-        {showSelects && (
-          <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Select Components Examples
-            </h2>
-            <SelectExample />
           </div>
         )}
 

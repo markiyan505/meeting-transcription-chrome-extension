@@ -1,24 +1,13 @@
 import React, { useState } from "react";
 import { Search } from "lucide-react";
-import { Input } from "@/components/shared/ui/Input/Input";
-import { DropdownSelect } from "@/components/shared/ui/DropdownSelect/DropdownSelect";
+import { Input } from "@/components/shared/ui/input/Input";
+import { DropdownSelect } from "@/components/shared/ui/dropdown-select/DropdownSelect";
 import { Typography } from "@/components/shared/ui/typography";
-import { LastRecord } from "./RecordPanel/RecordPanel";
-
-interface Record {
-  id: string;
-  title: string;
-  time: string;
-  duration: string;
-  platform: "google-meet" | "teams";
-  isSynced: boolean;
-  captionCount: number;
-  attendeeCount: number;
-  messageCount: number;
-}
+import { LastRecord } from "../Cards/record-card/RecordPanel";
+import { type MockRecord } from "../../data/mockData";
 
 interface RecordsTabProps {
-  records: Record[];
+  records: MockRecord[];
   onViewRecord: (id: string) => void;
   onExportRecord: (id: string) => void;
   onDeleteRecord: (id: string) => void;

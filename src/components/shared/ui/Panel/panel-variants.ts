@@ -6,9 +6,8 @@ export const panelVariants = cva("rounded-lg border transition-colors", {
       default: "bg-card border-border",
       outline: "bg-background border-border",
       filled: "bg-muted border-muted",
-      warning:
-        "bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800",
-      danger: "bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800",
+      warning: "bg-warning-muted border-warning/20",
+      danger: "bg-destructive-muted border-destructive/20",
     },
     size: {
       sm: "p-2",

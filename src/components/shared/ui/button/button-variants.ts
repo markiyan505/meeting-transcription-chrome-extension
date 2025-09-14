@@ -15,8 +15,10 @@ export const buttonVariants = cva(
         danger:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         primary: "bg-blue-600 hover:bg-blue-700 text-white shadow-sm",
-        warning: "bg-yellow-500 hover:bg-yellow-600 text-white shadow-sm",
-        success: "bg-green-600 hover:bg-green-700 text-white shadow-sm",
+        warning:
+          "bg-warning text-warning-foreground hover:bg-warning/90 shadow-sm",
+        success:
+          "bg-success text-success-foreground hover:bg-success/90 shadow-sm",
       },
       size: {
         sm: "h-8 [&_svg]:h-4 [&_svg]:w-4 text-sm",

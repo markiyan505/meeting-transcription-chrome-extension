@@ -1,6 +1,6 @@
 import React from "react";
 import { Home, History, User } from "lucide-react";
-import { Icon } from "@/components/shared/ui/Icon/Icon";
+import { Icon } from "@/components/shared/ui/icon/Icon";
 import { Button } from "@/components/shared/ui/button/Button";
 import { Typography } from "@/components/shared/ui/typography";
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon } from "@/components/shared/ui/Icon/Icon";
+import { Icon } from "@/components/shared/ui/icon/Icon";
 import { Typography } from "@/components/shared/ui/typography";
 import { Video, Phone } from "lucide-react";
 
@@ -19,21 +19,9 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
       case "google-meet":
-        return (
-          <Icon 
-            icon={Video} 
-            color="primary" 
-            tooltip="Google Meet"
-          />
-        );
+        return <Icon icon={Video} color="primary" tooltip="Google Meet" />;
       case "teams":
-        return (
-          <Icon
-            icon={Phone}
-            color="primary"
-            tooltip="Microsoft Teams"
-          />
-        );
+        return <Icon icon={Phone} color="primary" tooltip="Microsoft Teams" />;
       default:
         return (
           <Icon

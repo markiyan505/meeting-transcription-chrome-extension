@@ -10,45 +10,22 @@ import {
   // BarChart3,
 } from "lucide-react";
 import { Typography } from "@/components/shared/ui/typography";
-import { Panel } from "@/components/shared/ui/Panel/Panel";
-import TokenStatus from "./TokenStatus";
-import { Icon } from "@/components/shared/ui/Icon/Icon";
+import { Panel } from "@/components/shared/ui/panel/Panel";
+import TokenStatus from "../TokenStatus";
+import { Icon } from "@/components/shared/ui/icon/Icon";
+import {
+  type MockUser,
+  type MockProfileSettings,
+  type MockStats,
+  statisticsCardsConfig,
+  platformCardsConfig,
+} from "../../data/mockData";
 // import SettingItem from "./SettingItem";
 
-interface PlatformStats {
-  googleMeet: {
-    totalMeetings: number;
-    totalDuration: string;
-    averageDuration: string;
-  };
-  teams: {
-    totalMeetings: number;
-    totalDuration: string;
-    averageDuration: string;
-  };
-}
-
 interface ProfileTabProps {
-  user: {
-    name: string;
-    email: string;
-    avatar?: string;
-  };
-  settings: {
-    autoStart: boolean;
-    autoEnableCaptions: boolean;
-    allowAutoEnable: boolean;
-    theme: "light" | "dark";
-    notifications: boolean;
-  };
-  stats: {
-    totalRecords: number;
-    totalTime: string;
-    averageTime: string;
-    thisWeekRecords: number;
-    thisMonthRecords: number;
-    platformStats: PlatformStats;
-  };
+  user: MockUser;
+  settings: MockProfileSettings;
+  stats: MockStats;
   onSettingChange: (key: string, value: any) => void;
   onExportData: () => void;
   onRefreshToken?: () => void;
@@ -62,47 +39,16 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
   onExportData,
   onRefreshToken,
 }) => {
-  // Statistics cards configuration
-  const statisticsCards = [
-    {
-      key: "totalRecords",
-      value: stats.totalRecords,
-      label: "Total Records",
-      variant: "default" as const,
-    },
-    {
-      key: "totalTime",
-      value: stats.totalTime,
-      label: "Total Time",
-      variant: "default" as const,
-    },
-    {
-      key: "thisWeekRecords",
-      value: stats.thisWeekRecords,
-      label: "This Week",
-      variant: "outline" as const,
-    },
-    {
-      key: "averageTime",
-      value: stats.averageTime,
-      label: "Average Time",
-      variant: "outline" as const,
-    },
-  ];
+  // Use configurations from mockData
+  const statisticsCards = statisticsCardsConfig.map((card) => ({
+    ...card,
+    value: String(stats[card.key as keyof MockStats] || card.value),
+  }));
 
-  // Platform breakdown configuration
-  const platformCards = [
-    {
-      key: "googleMeet",
-      name: "Google Meet",
-      data: stats.platformStats.googleMeet,
-    },
-    {
-      key: "teams",
-      name: "Microsoft Teams",
-      data: stats.platformStats.teams,
-    },
-  ];
+  const platformCards = platformCardsConfig.map((card) => ({
+    ...card,
+    data: stats.platformStats[card.key as keyof typeof stats.platformStats],
+  }));
 
   // const settingsItems = [
   //   {

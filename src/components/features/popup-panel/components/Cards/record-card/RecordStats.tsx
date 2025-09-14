@@ -1,6 +1,6 @@
 import React from "react";
 import { FileText, Subtitles, Users, CheckCircle, XCircle } from "lucide-react";
-import { Icon } from "@/components/shared/ui/Icon/Icon";
+import { Icon } from "@/components/shared/ui/icon/Icon";
 import { Typography } from "@/components/shared/ui/typography/Typography";
 
 interface RecordStatsProps {
@@ -33,7 +33,12 @@ export const RecordStats: React.FC<RecordStatsProps> = ({
       {isSynced ? (
         <Icon icon={CheckCircle} color="success" size="sm" tooltip="Synced" />
       ) : (
-        <Icon icon={XCircle} color="danger" size="sm" tooltip="Not Synced" />
+        <Icon
+          icon={XCircle}
+          color="destructive"
+          size="sm"
+          tooltip="Not Synced"
+        />
       )}
     </div>
   );

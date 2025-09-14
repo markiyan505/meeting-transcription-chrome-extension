@@ -15,4 +15,4 @@ export type TypographyColor =
   | "primary"
   | "success"
   | "warning"
-  | "danger";
+  | "destructive";

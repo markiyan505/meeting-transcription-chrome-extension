@@ -3,7 +3,7 @@ import { LastRecordProps } from "./RecordPanel.types";
 import { RecordHeader } from "./RecordHeader";
 import { RecordStats } from "./RecordStats";
 import { RecordActions } from "./RecordActions";
-import { Panel } from "@/components/shared/ui/Panel/Panel";
+import { Panel } from "@/components/shared/ui/panel/Panel";
 import { Typography } from "@/components/shared/ui/typography";
 
 export const LastRecord: React.FC<LastRecordProps> = ({
