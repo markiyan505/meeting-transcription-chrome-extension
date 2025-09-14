@@ -391,6 +391,10 @@ export function handleCaptionMessages(
       handleStopCaptionRecording(sendResponse);
       break;
 
+    case "hard_stop_caption_recording":
+      handleHardStopCaptionRecording(request, sendResponse);
+      break;
+
     case "pause_caption_recording":
       handlePauseCaptionRecording(sendResponse);
       break;
@@ -597,6 +601,121 @@ async function handleStopCaptionRecording(sendResponse: any) {
     });
   } catch (error) {
     console.error("❌ [UI ACTION] Stop recording failed:", error);
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function handleHardStopCaptionRecording(request: any, sendResponse: any) {
+  try {
+    console.log(
+      "🗑️ [UI ACTION] Hard stopping caption recording and clearing all data...",
+      {
+        clearData: request.data?.clearData,
+        clearBackup: request.data?.clearBackup,
+        forceStop: request.data?.forceStop,
+      }
+    );
+
+    // Зупиняємо періодичні бекапи
+    stopPeriodicBackups();
+
+    // Перевіряємо, чи існує менеджер
+    if (!captionManager) {
+      console.warn("⚠️ [HARD STOP] Caption manager not initialized");
+      sendResponse({
+        success: true,
+        data: { message: "No active recording to stop" }
+      });
+      return;
+    }
+
+    // Якщо йде запис, спочатку зупиняємо його (але без збереження)
+    if (isCaptionModuleInitialized) {
+      try {
+        const recordingState = await captionManager.getRecordingState();
+        // if (recordingState.isRecording) {
+          // Примусово зупиняємо запис без збереження
+          console.log("🛑 [HARD STOP] Force stopping active recording...");
+          // Встановлюємо стан зупинки без виклику stopRecording()
+          captionManager.isRecording = false;
+          captionManager.isPaused = false;
+        // }
+      } catch (error) {
+        console.warn("⚠️ [HARD STOP] Could not check recording state:", error);
+      }
+    }
+
+    // Очищаємо дані в менеджері субтитрів
+    if (request.data?.clearData) {
+      try {
+        // Спочатку очищаємо дані
+        await captionManager.clearData();
+        console.log("�� [HARD STOP] Caption data cleared from manager");
+
+        // // Потім очищаємо ресурси (це також встановить adapter = null)
+        // await captionManager.cleanup();
+        // console.log("🧹 [HARD STOP] Adapter resources cleaned up");
+
+        // // Скидаємо стан менеджера
+        // captionManager = null;
+        // isCaptionModuleInitialized = false;
+        console.log("🧹 [HARD STOP] Caption manager state reset");
+      } catch (error) {
+        console.error("❌ [HARD STOP] Failed to clear caption data:", error);
+        // Навіть якщо очищення не вдалося, скидаємо стан
+        captionManager = null;
+        isCaptionModuleInitialized = false;
+      }
+    }
+
+    // Очищаємо backup в background
+    if (request.data?.clearBackup) {
+      try {
+        const clearResponse = await chrome.runtime.sendMessage({
+          type: "clear_caption_backup",
+        });
+
+        if (clearResponse?.success) {
+          console.log("�� [HARD STOP] Backup cleared successfully");
+        } else {
+          console.error(
+            "❌ [HARD STOP] Failed to clear backup:",
+            clearResponse?.error
+          );
+        }
+      } catch (error) {
+        console.error("❌ [HARD STOP] Failed to clear backup:", error);
+      }
+    }
+
+    // Оновлюємо статус бейджа
+    updateBadgeStatus(false);
+
+    console.log("✅ [HARD STOP] Hard stop completed successfully");
+    logCaptionEvent("hard_stop_completed", {
+      clearData: request.data?.clearData,
+      clearBackup: request.data?.clearBackup,
+      forceStop: request.data?.forceStop,
+    });
+
+    sendResponse({
+      success: true,
+      data: {
+        recordingStopped: true,
+        clearedData: request.data?.clearData,
+        clearedBackup: request.data?.clearBackup,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("❌ [HARD STOP] Hard stop failed:", error);
+    logCaptionEvent("error", {
+      type: "hard_stop_failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
     sendResponse({
       success: false,
       error: error instanceof Error ? error.message : String(error),

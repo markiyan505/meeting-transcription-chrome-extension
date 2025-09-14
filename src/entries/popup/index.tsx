@@ -1,5 +1,5 @@
-import { createApp } from "@/shared/utils/createApp";
-import PopupApp from "./PopupApp";
+import { createApp } from "@/utils/createApp";
+import PopupApp from "@/components/features/popup-panel/PopupApp";
 import "../../index.css";
 
 createApp({

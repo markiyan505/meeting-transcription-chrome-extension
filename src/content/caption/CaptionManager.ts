@@ -167,13 +167,13 @@ export class CaptionManager {
           console.log("✅ [CAPTIONS] Captions confirmed working after delay");
         }
       } else {
-        
+
         console.log("✅ [CAPTIONS] Captions already enabled");
 
         // Невелика затримка для стабілізації навіть якщо субтитри вже увімкнені
-        console.log("⏳ [CAPTIONS] Stabilizing captions...");
-        await new Promise((resolve) => setTimeout(resolve, 500)); // 0.5 секунди
-        console.log("✅ [CAPTIONS] Captions stabilized");
+        // console.log("⏳ [CAPTIONS] Stabilizing captions...");
+        // await new Promise((resolve) => setTimeout(resolve, 500)); // 0.5 секунди
+        // console.log("✅ [CAPTIONS] Captions stabilized");
       }
 
       const result = await this.adapter.startRecording();

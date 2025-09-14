@@ -1,4 +1,4 @@
-import { createApp } from "@/shared/utils/createApp";
+import { createApp } from "@/utils/createApp";
 import DevApp from "./DevApp";
 import "../../index.css";
 

@@ -103,6 +103,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ success: true });
       return true; // Keep message channel open
 
+    case "clear_caption_backup":
+      handleClearCaptionBackup(sendResponse);
+      return true; // Keep message channel open
+
     default:
       sendResponse({ error: "Unknown message type" });
   }
@@ -665,5 +669,30 @@ async function cleanupEmptyHistoryEntries() {
       "❌ [CLEANUP] Failed to cleanup empty history entries:",
       error
     );
+  }
+}
+
+/**
+ * Очищає backup дані
+ */
+async function handleClearCaptionBackup(sendResponse: (response: any) => void) {
+  try {
+    console.log("🧹 [CLEAR BACKUP] Clearing caption backup data...");
+
+    // Очищаємо backup
+    await chrome.storage.local.remove(CAPTION_STORAGE_KEYS.BACKUP);
+    console.log("✅ [CLEAR BACKUP] Caption backup cleared successfully");
+
+    sendResponse({
+      success: true,
+      message: "Backup cleared successfully",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("❌ [CLEAR BACKUP] Failed to clear caption backup:", error);
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

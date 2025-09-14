@@ -1,5 +1,5 @@
 import React from "react";
-import MeetControlPanel from "@/components/MeetControlPanel/";
+import MeetControlPanel from "@/components/features/meet-control-panel/MeetControlPanel";
 
 const MeetPanelDemo: React.FC = () => {
   return (

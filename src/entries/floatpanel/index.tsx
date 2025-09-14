@@ -1,5 +1,5 @@
-import { createApp } from "@/shared/utils/createApp";
-import MeetControlPanel from "@/components/MeetControlPanel";
+import { createApp } from "@/utils/createApp";
+import MeetControlPanel from "@/components/features/meet-control-panel/MeetControlPanel";
 import "../../index.css";
 
 createApp({

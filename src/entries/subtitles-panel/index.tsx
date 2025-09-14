@@ -1,5 +1,5 @@
-import { createApp } from "@/shared/utils/createApp";
-import FloatPanelSubtitles from "@/components/SubtitlesPanel/FloatPanelSubtitles";
+import { createApp } from "@/utils/createApp";
+import FloatPanelSubtitles from "@/components/features/subtitles-panel/FloatPanelSubtitles";
 import "../../index.css";
 
 createApp({
