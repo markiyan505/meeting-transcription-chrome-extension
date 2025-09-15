@@ -6,7 +6,6 @@ const sendSessionToBackground = () => {
   let sessionData = null;
   let sessionKey = null;
 
-  // Шукаємо Supabase токен в localStorage
   for (const key of Object.keys(localStorage)) {
     if (SUPABASE_SESSION_KEY.test(key)) {
       sessionData = localStorage.getItem(key);
@@ -19,7 +18,6 @@ const sendSessionToBackground = () => {
     try {
       const parsedSession = JSON.parse(sessionData);
 
-      // Відправляємо сесію в background script
       chrome.runtime.sendMessage({
         type: "AUTH_SESSION_FROM_PAGE",
         payload: {
@@ -39,7 +37,6 @@ const sendSessionToBackground = () => {
       console.error("Auth Bridge: Failed to parse or send session.", e);
     }
   } else {
-    // Якщо токен не знайдено, відправляємо сигнал про вихід
     chrome.runtime.sendMessage({
       type: "AUTH_SESSION_CLEARED",
       payload: { timestamp: Date.now() },
@@ -49,7 +46,6 @@ const sendSessionToBackground = () => {
   }
 };
 
-// Функція для перевірки валідності токена
 const validateSession = (session: any): boolean => {
   if (!session || !session.access_token || !session.expires_at) {
     return false;
@@ -59,10 +55,8 @@ const validateSession = (session: any): boolean => {
   return session.expires_at > now;
 };
 
-// Відправляємо поточну сесію при завантаженні
 sendSessionToBackground();
 
-// Відстежуємо зміни в localStorage
 window.addEventListener("storage", (event) => {
   if (event.key && SUPABASE_SESSION_KEY.test(event.key)) {
     console.log(
@@ -72,7 +66,6 @@ window.addEventListener("storage", (event) => {
   }
 });
 
-// Відстежуємо зміни в sessionStorage (якщо токени зберігаються там)
 window.addEventListener("storage", (event) => {
   if (
     event.storageArea === sessionStorage &&
@@ -86,7 +79,6 @@ window.addEventListener("storage", (event) => {
   }
 });
 
-// Періодична перевірка токенів (кожні 30 секунд)
 setInterval(() => {
   sendSessionToBackground();
 }, 30000);

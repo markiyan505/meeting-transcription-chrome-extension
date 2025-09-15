@@ -69,7 +69,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       </button>
     );
 
-    // Якщо є tooltip, обгортаємо в Tooltip компонент
     if (tooltip && !isDisabled) {
       return (
         <Tooltip content={tooltip} position={tooltipPosition}>
@@ -78,7 +77,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       );
     }
 
-    // Якщо немає tooltip або кнопка disabled/loading, повертаємо просто кнопку
     return buttonElement;
   }
 );

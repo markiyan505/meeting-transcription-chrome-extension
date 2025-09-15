@@ -1,5 +1,5 @@
 /**
- * SettingsManager - управління налаштуваннями розширення
+ * SettingsManager - manages extension settings
  */
 
 import type { SettingsConfig } from "../../types/settings";
@@ -7,7 +7,7 @@ import { Theme } from "../../types/settings";
 
 export class SettingsManager {
   /**
-   * Factory для створення дефолтних налаштувань
+   * Factory for creating default settings
    */
   static createDefaultSettings(): SettingsConfig {
     return {
@@ -22,7 +22,7 @@ export class SettingsManager {
   }
 
   /**
-   * Валідаційні функції з type guards
+   * Validation functions with type guards
    */
   private static readonly CRITICAL_VALIDATORS = {
     theme: (value: any): value is Theme =>
@@ -33,7 +33,7 @@ export class SettingsManager {
   } as const;
 
   /**
-   * Ініціалізує налаштування при встановленні/оновленні розширення
+   * Initializes settings on extension install/update
    */
   static async initializeSettings(reason: string): Promise<void> {
     const defaultSettings = this.createDefaultSettings();
@@ -52,19 +52,16 @@ export class SettingsManager {
       );
       const settingsToUpdate: Partial<SettingsConfig> = {};
 
-      // Перевіряємо всі налаштування
       for (const [key, defaultValue] of Object.entries(defaultSettings)) {
         const settingKey = key as keyof SettingsConfig;
         const existingValue = existingSettings[settingKey];
 
-        // Якщо налаштування відсутнє
         if (existingValue === undefined) {
           (settingsToUpdate as any)[settingKey] = defaultValue;
           console.log(`Missing setting ${key}: -> ${defaultValue}`);
           continue;
         }
 
-        // Якщо є валідатор для цього налаштування
         if (settingKey in this.CRITICAL_VALIDATORS) {
           const validator =
             this.CRITICAL_VALIDATORS[
@@ -89,7 +86,7 @@ export class SettingsManager {
   }
 
   /**
-   * Отримує поточні налаштування
+   * Gets the current settings
    */
   static async getSettings(): Promise<SettingsConfig> {
     const defaultSettings = this.createDefaultSettings();
@@ -104,7 +101,7 @@ export class SettingsManager {
   }
 
   /**
-   * Оновлює налаштування
+   * Updates the settings
    */
   static async updateSettings(
     settings: Partial<SettingsConfig>
@@ -113,7 +110,7 @@ export class SettingsManager {
   }
 
   /**
-   * Перемикає стан розширення
+   * Toggles the extension state
    */
   static async toggleExtensionState(): Promise<boolean> {
     const settings = await this.getSettings();
@@ -123,7 +120,7 @@ export class SettingsManager {
   }
 
   /**
-   * Перемикає видимість панелі
+   * Toggles the visibility of the panel
    */
   static async toggleFloatPanelVisibility(): Promise<boolean> {
     const settings = await this.getSettings();

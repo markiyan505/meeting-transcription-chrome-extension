@@ -2,15 +2,12 @@
  * Конфігурація для модуля зчитування субтитрів
  */
 
-// Базова конфігурація
 export const defaultConfig = {
-  // Загальні налаштування
   autoEnableCaptions: true,
   autoSaveOnEnd: true,
   trackAttendees: true,
   operationMode: "automatic", // 'manual' | 'automatic'
 
-  // Налаштування експорту
   export: {
     defaultFormat: "json",
     includeTimestamps: true,
@@ -19,14 +16,12 @@ export const defaultConfig = {
     filenamePrefix: "meeting_transcript",
   },
 
-  // Налаштування логування
   logging: {
     enabled: true,
     level: "info", // 'debug' | 'info' | 'warn' | 'error'
     showNotifications: true,
   },
 
-  // Налаштування UI
   ui: {
     showStatusIndicator: true,
     notificationDuration: 5000,
@@ -34,12 +29,10 @@ export const defaultConfig = {
   },
 };
 
-// Конфігурація для Google Meet
 export const googleMeetConfig = {
   ...defaultConfig,
   platform: "google-meet",
 
-  // Базові селектори, які не змінюються між версіями UI
   baseSelectors: {
     captionsContainer: 'div[role="region"][tabindex="0"]',
     chatContainer: 'div[aria-live="polite"].Ge9Kpc',
@@ -47,7 +40,6 @@ export const googleMeetConfig = {
     userName: ".awLEm",
   },
 
-  // Налаштування для різних версій UI
   uiVersions: {
     1: {
       captionsButton: ".material-icons-extended",
@@ -66,13 +58,11 @@ export const googleMeetConfig = {
   },
 };
 
-// Конфігурація для Microsoft Teams
 export const teamsConfig = {
   ...defaultConfig,
   platform: "teams",
   autoOpenAttendees: true,
 
-  // Специфічні налаштування для Teams
   selectors: {
     captionsContainer:
       "[data-tid='closed-caption-v2-window-wrapper'], [data-tid='closed-captions-renderer'], [data-tid*='closed-caption']",
@@ -100,7 +90,6 @@ export const teamsConfig = {
       "button[data-tid='calling-toolbar-people-button'], button[id='roster-button']",
   },
 
-  // Налаштування таймінгу
   timing: {
     buttonClickDelay: 400,
     retryDelay: 2000,
@@ -111,7 +100,6 @@ export const teamsConfig = {
   },
 };
 
-// Конфігурація для розробки
 export const developmentConfig = {
   ...defaultConfig,
   logging: {
@@ -120,7 +108,6 @@ export const developmentConfig = {
     showNotifications: true,
   },
 
-  // Додаткові налаштування для розробки
   debug: {
     showConsoleLogs: true,
     showPerformanceMetrics: true,
@@ -128,7 +115,6 @@ export const developmentConfig = {
   },
 };
 
-// Конфігурація для продакшену
 export const productionConfig = {
   ...defaultConfig,
   logging: {
@@ -137,7 +123,6 @@ export const productionConfig = {
     showNotifications: true,
   },
 
-  // Оптимізації для продакшену
   performance: {
     enableCaching: true,
     cacheExpiry: 5000,
@@ -146,7 +131,6 @@ export const productionConfig = {
   },
 };
 
-// Функція для отримання конфігурації на основі платформи
 export function getConfigForPlatform(
   platform: string,
   environment: string = "production"
@@ -171,7 +155,6 @@ export function getConfigForPlatform(
   };
 }
 
-// Функція для отримання конфігурації на основі поточної платформи
 export function getConfigForCurrentPlatform(environment = "production") {
   const hostname = window.location.hostname.toLowerCase();
   let platform = "unknown";
@@ -188,7 +171,6 @@ export function getConfigForCurrentPlatform(environment = "production") {
   return getConfigForPlatform(platform, environment);
 }
 
-// Функція для валідації конфігурації
 export function validateConfig(config: any) {
   const requiredFields = [
     "platform",
@@ -214,7 +196,6 @@ export function validateConfig(config: any) {
   return true;
 }
 
-// Функція для мержингу конфігурацій
 export function mergeConfigs(baseConfig: any, userConfig: any) {
   return {
     ...baseConfig,
@@ -234,7 +215,6 @@ export function mergeConfigs(baseConfig: any, userConfig: any) {
   };
 }
 
-// Експорт всіх конфігурацій
 export const configs = {
   default: defaultConfig,
   googleMeet: googleMeetConfig,

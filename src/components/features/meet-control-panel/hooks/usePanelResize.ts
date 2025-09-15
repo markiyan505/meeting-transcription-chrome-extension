@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { orientationType, stateType, errorType } from "../types";
 
-// Function to send messages to parent window (content script)
 const sendMessageToParent = (message: any) => {
   if (window.parent && window.parent !== window) {
     window.parent.postMessage(message, "*");
@@ -23,11 +22,8 @@ export const usePanelResize = ({
   state,
   error,
 }: UsePanelResizeProps) => {
-  // const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  // const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentStateRef = useRef({ orientation, isCollapsed, state, error });
 
-  // Function to calculate panel dimensions based on state
   const calculatePanelDimensions = useCallback(
     (
       orientation: orientationType,
@@ -64,10 +60,8 @@ export const usePanelResize = ({
   const sendResizeMessage = useCallback(() => {
     if (!panelRef.current) return;
 
-    // Use current state from ref to avoid stale closure values
     const currentState = currentStateRef.current;
 
-    // Calculate exact dimensions based on state
     const { width, height } = calculatePanelDimensions(
       currentState.orientation,
       currentState.isCollapsed,
@@ -102,7 +96,6 @@ export const usePanelResize = ({
     sendResizeMessage();
   }, [panelRef, sendResizeMessage]);
 
-  // Update ref when state changes
   useEffect(() => {
     currentStateRef.current = { orientation, isCollapsed, state, error };
   }, [orientation, isCollapsed, state, error]);

@@ -7,7 +7,6 @@ import {
   unblockIframe,
 } from "../utils/utils";
 
-// Drag functionality
 export function setupDragLogic(
   element: HTMLElement,
   dragHandle: HTMLElement,

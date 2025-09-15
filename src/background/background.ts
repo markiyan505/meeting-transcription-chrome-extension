@@ -1,6 +1,6 @@
 /**
  * Background service worker for Chrome extension
- * Головний файл - координація всіх модулів
+ * Main file - coordinates all modules
  */
 import { BadgeManager } from "./modules/BadgeManager";
 import { SettingsManager } from "./modules/SettingsManager";
@@ -13,37 +13,15 @@ import { AuthManager } from "./modules/AuthManager";
 
 console.log("Background script loaded");
 
-// Handle extension installation/update
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log("Extension installed:", details);
   await SettingsManager.initializeSettings(details.reason);
 });
 
-// Handle tab updates
-// chrome.tabs.onUpdated.addListener((targetTabId, changeInfo, tab) => {
-//   if (changeInfo.status === "complete" && tab.url) {
-//     console.log("Tab updated:", tab.url);
-
-//     // Inject content script if needed
-//     chrome.scripting
-//       .executeScript({
-//         target: { targetTabId },
-//         files: ["content.js"],
-//       })
-//       .catch((error) => {
-//         console.error("Could not inject content script:", error);
-//       });
-//   }
-// });
-
-// =======================================================
-// ГОЛОВНИЙ ОБРОБНИК ПОВІДОМЛЕНЬ
-// =======================================================
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Використовуємо async IIFE для обробки асинхронних операцій
   (async () => {
     const targetTabId = sender.tab?.id || (await getActiveTabId());
-    let response: any = { success: true }; // Відповідь за замовчуванням
+    let response: any = { success: true };
 
     try {
       switch (message.type) {
@@ -64,7 +42,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           break;
 
-        // --- 2. Звіт про зміну стану (від Content до Background) ---
         case MessageType.STATE_UPDATED:
           if (targetTabId) {
             await StateManager.updateState(targetTabId, message.data);
@@ -72,26 +49,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           break;
 
-        // --- 3. Команди, що читають стан (від UI до Background) ---
         case MessageType.GET_CAPTION_STATUS:
-          // Спочатку намагаємося отримати стан з session storage (глобальний стан)
           const sessionState = await chrome.storage.session.get(
             "caption_session_state"
           );
           let state = sessionState.caption_session_state;
 
           if (!state) {
-            // Fallback до стану конкретної вкладки
             const requestingTabId = targetTabId || (await getActiveTabId());
             state = requestingTabId
               ? await StateManager.getState(requestingTabId)
               : null;
           }
 
-          // Отримуємо поточний стан розширення з налаштувань
           const settings = await SettingsManager.getSettings();
 
-          // Отримуємо інформацію про платформу від активного табу
           let platformInfo = {
             isSupportedPlatform: false,
             currentPlatform: "unknown",
@@ -104,7 +76,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
             if (activeTab?.id) {
               console.log(
-                "📡 [BACKGROUND] Getting platform info from tab:",
+                "[BACKGROUND] Getting platform info from tab:",
                 activeTab.url
               );
               const platformResponse = await chrome.tabs.sendMessage(
@@ -114,23 +86,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
               );
               console.log(
-                "📡 [BACKGROUND] Raw platform response:",
+                "[BACKGROUND] Raw platform response:",
                 platformResponse
               );
               if (platformResponse && platformResponse.success) {
                 platformInfo = platformResponse;
                 console.log(
-                  "📡 [BACKGROUND] Platform info received:",
+                  "[BACKGROUND] Platform info received:",
                   platformInfo
                 );
               } else {
                 console.warn(
-                  "📡 [BACKGROUND] No platform response received or failed:",
+                  "[BACKGROUND] No platform response received or failed:",
                   platformResponse
                 );
               }
             } else {
-              console.warn("📡 [BACKGROUND] No active tab found");
+              console.warn("[BACKGROUND] No active tab found");
             }
           } catch (error) {
             console.warn(
@@ -144,7 +116,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             state.isSupportedPlatform = platformInfo.isSupportedPlatform;
             state.currentPlatform = platformInfo.currentPlatform;
           } else {
-            // Якщо стану немає, створюємо базовий
             state = {
               isInitialized: false,
               isSupportedPlatform: platformInfo.isSupportedPlatform,
@@ -161,7 +132,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           response = state;
           break;
 
-        // --- 4. Делегування іншим менеджерам ---
         case MessageType.SAVE_CAPTION_DATA:
           response = await SessionManager.saveSessionData(message, sender);
           break;
@@ -207,14 +177,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         case MessageType.TOGGLE_EXTENSION_STATE:
-          console.log("📡 [BACKGROUND] Processing TOGGLE_EXTENSION_STATE");
+          console.log("[BACKGROUND] Processing TOGGLE_EXTENSION_STATE");
           const newExtensionState =
             await SettingsManager.toggleExtensionState();
           console.log(
-            `📡 [BACKGROUND] Extension state toggled to: ${newExtensionState}`
+            `[BACKGROUND] Extension state toggled to: ${newExtensionState}`
           );
 
-          // Передаємо команду до content script
           try {
             const [activeTab] = await chrome.tabs.query({
               active: true,
@@ -227,7 +196,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 isEnabled: newExtensionState,
               });
               console.log(
-                "📡 [BACKGROUND] TOGGLE_EXTENSION_STATE sent to content script"
+                "[BACKGROUND] TOGGLE_EXTENSION_STATE sent to content script"
               );
             }
           } catch (error) {
@@ -236,15 +205,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               error
             );
           }
-
-          // Відправляємо повідомлення до всіх UI компонентів
           try {
             await chrome.runtime.sendMessage({
               type: MessageType.TOGGLE_EXTENSION_STATE,
               isEnabled: newExtensionState,
             });
             console.log(
-              "📡 [BACKGROUND] TOGGLE_EXTENSION_STATE sent to UI components"
+              "[BACKGROUND] TOGGLE_EXTENSION_STATE sent to UI components"
             );
           } catch (error) {
             console.warn(
@@ -257,13 +224,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         case MessageType.TOGGLE_PANEL_VISIBILITY:
-          console.log("📡 [BACKGROUND] Processing TOGGLE_PANEL_VISIBILITY");
+          console.log("[BACKGROUND] Processing TOGGLE_PANEL_VISIBILITY");
           const isVisible = await SettingsManager.toggleFloatPanelVisibility();
-          console.log(
-            `📡 [BACKGROUND] Panel visibility toggled to: ${isVisible}`
-          );
+          console.log(`[BACKGROUND] Panel visibility toggled to: ${isVisible}`);
 
-          // Передаємо команду до content script
           try {
             const [activeTab] = await chrome.tabs.query({
               active: true,
@@ -275,7 +239,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 type: MessageType.TOGGLE_PANEL_VISIBILITY,
               });
               console.log(
-                "📡 [BACKGROUND] TOGGLE_PANEL_VISIBILITY sent to content script"
+                "[BACKGROUND] TOGGLE_PANEL_VISIBILITY sent to content script"
               );
             }
           } catch (error) {
@@ -296,25 +260,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           response = activeTab;
           break;
 
-        // --- Нові кейси для автентифікації ---
         case "AUTH_SESSION_FROM_PAGE":
-          console.log("📡 [BACKGROUND] Processing AUTH_SESSION_FROM_PAGE");
+          console.log("[BACKGROUND] Processing AUTH_SESSION_FROM_PAGE");
           if (message.payload?.session) {
             await AuthManager.saveSession(message.payload.session);
-            console.log("📡 [BACKGROUND] Auth session saved");
+            console.log("[BACKGROUND] Auth session saved");
           }
           response = { success: true };
           break;
 
         case "AUTH_SESSION_CLEARED":
-          console.log("📡 [BACKGROUND] Processing AUTH_SESSION_CLEARED");
+          console.log("[BACKGROUND] Processing AUTH_SESSION_CLEARED");
           await AuthManager.clearSession();
-          console.log("📡 [BACKGROUND] Auth session cleared");
+          console.log("[BACKGROUND] Auth session cleared");
           response = { success: true };
           break;
 
         case "GET_AUTH_STATUS":
-          console.log("📡 [BACKGROUND] Processing GET_AUTH_STATUS");
+          console.log("[BACKGROUND] Processing GET_AUTH_STATUS");
           const authSession = await AuthManager.getSession();
           const authIsAuthenticated = await AuthManager.isAuthenticated();
           const authTokenExpiry = await AuthManager.getTokenExpiry();
@@ -330,7 +293,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         case "REFRESH_TOKEN":
-          console.log("📡 [BACKGROUND] Processing REFRESH_TOKEN");
+          console.log("[BACKGROUND] Processing REFRESH_TOKEN");
           await AuthManager.refreshToken();
           const newTokenExpiry = await AuthManager.getTokenExpiry();
 
@@ -358,12 +321,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
   })();
 
-  return true; // Важливо для асинхронних відповідей
+  return true;
 });
 
 async function broadcastStateUpdate(newState: CaptionState): Promise<void> {
   try {
-    console.log("📡 [BACKGROUND] Broadcasting state update:", newState);
+    console.log("[BACKGROUND] Broadcasting state update:", newState);
 
     await chrome.storage.session.set({
       caption_session_state: newState,
@@ -374,7 +337,7 @@ async function broadcastStateUpdate(newState: CaptionState): Promise<void> {
       data: newState,
     });
 
-    console.log("📡 [BACKGROUND] State update broadcasted successfully");
+    console.log("[BACKGROUND] State update broadcasted successfully");
   } catch (error) {
     console.log(
       "Broadcast info: Could not send message to runtime listeners (e.g., popup). They might be closed."
@@ -386,10 +349,9 @@ chrome.tabs.onRemoved.addListener((targetTabId) => {
   StateManager.clearState(targetTabId);
 });
 
-// Обробник для "будильника" оновлення токенів
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "refreshTokenAlarm") {
-    console.log("📡 [BACKGROUND] Token refresh alarm triggered");
+    console.log("[BACKGROUND] Token refresh alarm triggered");
     AuthManager.refreshToken();
   }
 });

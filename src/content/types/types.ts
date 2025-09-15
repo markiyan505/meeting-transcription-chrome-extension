@@ -1,4 +1,3 @@
-// Panel configurations
 export interface PanelConfig {
   PANEL_IDS: {
     CONTAINER: string;
@@ -78,7 +77,6 @@ export const FILTERED_MESSAGE_TYPES = [
   "REACT_DEVTOOLS_BRIDGE",
 ] as const;
 
-// Drag functionality
 export interface DragState {
   isDragging: boolean;
   startX: number;
@@ -87,7 +85,6 @@ export interface DragState {
   elementStartY: number;
 }
 
-// Resize functionality
 export interface ResizeState {
   isResizing: boolean;
   handle: string;

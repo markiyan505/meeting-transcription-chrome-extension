@@ -1,94 +1,88 @@
 /**
- * Централізовані типи повідомлень для Chrome Extension
- * Використовується для безпечної комунікації між background, content та popup скриптами
+ * Centralized message types for Chrome Extension
+ * Used for secure communication between background, content and popup scripts
  */
 
 /**
- * Типи повідомлень для комунікації між скриптами
+ * Message types for communication between scripts
  */
 export enum MessageType {
   // === CAPTION MANAGEMENT ===
 
   STATE_UPDATED = "state_updated",
 
-  /** Отримати статус субтитрів */
+  /** Get caption status */
   GET_CAPTION_STATUS = "get_caption_status",
 
-
-  /** Почати запис субтитрів */
+  /** Start caption recording */
   START_CAPTION_RECORDING = "start_caption_recording",
-  /** Зупинити запис субтитрів */
+  /** Stop caption recording */
   STOP_CAPTION_RECORDING = "stop_caption_recording",
-  /** Примусово зупинити запис субтитрів */
+  /** Force stop caption recording */
   HARD_STOP_CAPTION_RECORDING = "hard_stop_caption_recording",
-  /** Призупинити запис субтитрів */
+  /** Pause caption recording */
   PAUSE_CAPTION_RECORDING = "pause_caption_recording",
-  /** Відновити запис субтитрів */
+  /** Resume caption recording */
   RESUME_CAPTION_RECORDING = "resume_caption_recording",
 
-
-  /** Увімкнути субтитри */
+  /** Enable captions */
   ENABLE_CAPTIONS = "enable_captions",
-  /** Вимкнути субтитри */
+  /** Disable captions */
   DISABLE_CAPTIONS = "disable_captions",
 
-
-
-
-
-  /** Перемкнути субтитри */
+  /** Toggle captions */
   // TOGGLE_CAPTION_SUBTITLES = "toggle_caption_subtitles",
 
   // === DATA MANAGEMENT ===
 
-  /** Зберегти дані субтитрів */
+  /** Save caption data */
   SAVE_CAPTION_DATA = "save_caption_data",
-  /** Експортувати дані субтитрів */
+  /** Export caption data */
   EXPORT_CAPTION_DATA = "export_caption_data",
 
-  /** Створити бекап даних субтитрів */
+  /** Create caption data backup */
   BACKUP_CAPTION_DATA = "backup_caption_data",
-  /** Очистити бекап даних субтитрів */
+  /** Clear caption data backup */
   CLEAR_CAPTION_BACKUP = "clear_caption_backup",
-  /** Додати бекап даних субтитрів */
+  /** Add caption data backup */
   ADD_BACKUP_TO_HISTORY = "add_backup_to_history",
-  /** Перевірити відновлення з бекапу */
+  /** Check backup recovery */
   CHECK_BACKUP_RECOVERY = "check_backup_recovery",
 
-  /** Отримати історію субтитрів */
+  /** Get caption history */
   GET_CAPTION_HISTORY = "get_caption_history",
-  /** Очистити історію субтитрів */
+  /** Clear caption history */
   CLEAR_CAPTION_HISTORY = "clear_caption_history",
-  /** Очистити порожні записи історії */
+  /** Clean empty history entries */
   CLEANUP_EMPTY_HISTORY = "cleanup_empty_history",
 
   // === UI MANAGEMENT ===
-  /** Оновити налаштування */
+  /** Update settings */
   UPDATE_SETTINGS = "update_settings",
-  /** Перемкнути стан розширення */
+  /** Toggle extension state */
   TOGGLE_EXTENSION_STATE = "toggle_extension_state",
-  /** Перемкнути видимість панелі */
+  /** Toggle panel visibility */
   TOGGLE_PANEL_VISIBILITY = "toggle_panel_visibility",
-  /** Оновити статус бейджа */
+  /** Update badge status */
   UPDATE_BADGE_STATUS = "update_badge_status",
 }
 
 /**
- * Типи відповідей для повідомлень
+ * Response types for messages
  */
 export enum ResponseType {
-  /** Успішна відповідь */
+  /** Successful response */
   SUCCESS = "success",
-  /** Помилка */
+  /** Error */
   ERROR = "error",
-  /** Попередження */
+  /** Warning */
   WARNING = "warning",
-  /** Інформація */
+  /** Information */
   INFO = "info",
 }
 
 /**
- * Базовий інтерфейс для всіх повідомлень
+ * Base interface for all messages
  */
 export interface BaseMessage {
   type: MessageType;
@@ -97,7 +91,7 @@ export interface BaseMessage {
 }
 
 /**
- * Інтерфейс для відповідей
+ * Interface for responses
  */
 export interface BaseResponse {
   success: boolean;
@@ -108,7 +102,7 @@ export interface BaseResponse {
 }
 
 /**
- * Специфічні типи повідомлень
+ * Specific message types
  */
 export interface CaptionDataMessage extends BaseMessage {
   type: MessageType.SAVE_CAPTION_DATA | MessageType.BACKUP_CAPTION_DATA;
@@ -150,11 +144,11 @@ export interface ExportMessage extends BaseMessage {
 }
 
 /**
- * Утилітні функції для роботи з повідомленнями
+ * Utility functions for working with messages
  */
 export class MessageUtils {
   /**
-   * Створює базове повідомлення
+   * Creates a base message
    */
   static createMessage(type: MessageType, data?: any): BaseMessage {
     return {
@@ -177,7 +171,7 @@ export class MessageUtils {
   }
 
   /**
-   * Створює відповідь з помилкою
+   * Creates an error response
    */
   static createErrorResponse(error: string | Error, data?: any): BaseResponse {
     return {
@@ -189,7 +183,7 @@ export class MessageUtils {
   }
 
   /**
-   * Перевіряє, чи є повідомлення валідним
+   * Checks if the message is valid
    */
   static isValidMessage(message: any): message is BaseMessage {
     return (

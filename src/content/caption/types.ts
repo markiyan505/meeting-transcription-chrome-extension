@@ -1,5 +1,5 @@
 /**
- * Універсальні типи для модуля зчитування субтитрів
+ * Universal types for the caption module
  */
 
 import type {
@@ -14,7 +14,6 @@ import type {
   OperationResult,
 } from "../../types/session";
 
-// Re-export types for backward compatibility
 export type {
   CaptionEntry,
   ChatMessage,
@@ -27,7 +26,6 @@ export type {
   OperationResult,
 };
 
-// Конфігурація адаптера
 export interface AdapterConfig {
   platform: string;
   autoEnableCaptions: boolean;
@@ -36,7 +34,6 @@ export interface AdapterConfig {
   operationMode: "manual" | "automatic";
 }
 
-// Події
 export interface CaptionEvent {
   type:
     | "caption_added"
@@ -51,44 +48,35 @@ export interface CaptionEvent {
   timestamp: string;
 }
 
-// Універсальний інтерфейс для адаптерів
 export interface CaptionAdapter {
-  // Ініціалізація та відновлення
   initialize(): Promise<OperationResult>;
-  hydrate(data: HydrationData): void; // <-- ДОДАНО
+  hydrate(data: HydrationData): void;
 
-  // Перевірка стану
   isCaptionsEnabled(): Promise<boolean>;
   isInMeeting(): Promise<boolean>;
   getRecordingState(): Promise<RecordingState>;
 
-  // Управління субтитрами
   enableCaptions(): Promise<OperationResult>;
   disableCaptions(): Promise<OperationResult>;
 
-  // Управління записом
   startRecording(): Promise<OperationResult>;
   stopRecording(): Promise<OperationResult>;
   pauseRecording(): Promise<OperationResult>;
   resumeRecording(): Promise<OperationResult>;
   hardStopRecording(): Promise<OperationResult>;
 
-  // Отримання даних
   getCaptions(): CaptionEntry[];
   getChatMessages(): ChatMessage[];
   getMeetingInfo(): MeetingInfo;
 
-  // Очищення
   clearData(): Promise<OperationResult>;
   cleanup(): Promise<OperationResult>;
 
-  // Події
   on(event: string, callback: (data: any) => void): void;
   off(event: string, callback: (data: any) => void): void;
   emit(event: string, data: any): void;
 }
 
-// Типи для різних платформ
 export interface GoogleMeetConfig extends AdapterConfig {
   platform: "google-meet";
   baseSelectors: {
@@ -144,7 +132,6 @@ export interface TeamsConfig extends AdapterConfig {
   };
 }
 
-// Селектори для різних платформ
 export interface PlatformSelectors {
   captionsContainer: string;
   captionText: string;
@@ -156,7 +143,6 @@ export interface PlatformSelectors {
   attendeesContainer?: string;
 }
 
-// Конфігурація селекторів
 export interface SelectorsConfig {
   "google-meet": PlatformSelectors;
   teams: PlatformSelectors;

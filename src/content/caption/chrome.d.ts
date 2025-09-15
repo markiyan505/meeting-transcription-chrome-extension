@@ -2,7 +2,6 @@
  * Типи для Chrome Extension API
  */
 
-// Базові типи для розширення
 export interface ExtensionStatusJSON {
   status: number;
   message: string;
@@ -46,9 +45,7 @@ export interface ResultSync {
   trackAttendees?: boolean;
 }
 
-// Розширення глобального об'єкта Window
 declare global {
   interface Window {
-    // Додаткові властивості можна додати тут при потребі
   }
 }

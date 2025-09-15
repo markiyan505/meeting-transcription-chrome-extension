@@ -6,7 +6,7 @@ import { Panel } from "@/components/shared/ui/panel/Panel";
 import { Icon } from "@/components/shared/ui/icon/Icon";
 
 interface TokenStatusProps {
-  tokenExpiresAt?: number; // UNIX timestamp в секундах
+  tokenExpiresAt?: number; 
   onRefreshToken?: () => void;
   className?: string;
   isAuthenticated?: boolean;
@@ -18,14 +18,13 @@ const TokenStatus: React.FC<TokenStatusProps> = ({
   className = "",
   isAuthenticated = false,
 }) => {
-  // Use prop token expiration or create a mock one
   const [tokenExpiration, setTokenExpiration] = useState<Date | null>(null);
   const [timeUntilExpiration, setTimeUntilExpiration] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   useEffect(() => {
     if (tokenExpiresAt) {
-      // Конвертуємо UNIX timestamp в Date
+     
       setTokenExpiration(new Date(tokenExpiresAt * 1000));
     } else {
       setTokenExpiration(null);
@@ -63,10 +62,8 @@ const TokenStatus: React.FC<TokenStatusProps> = ({
       }
     };
 
-    // Update immediately
     updateTimeUntilExpiration();
 
-    // Update every 30 seconds for more stable display
     const interval = setInterval(updateTimeUntilExpiration, 30000);
 
     return () => clearInterval(interval);
@@ -81,13 +78,11 @@ const TokenStatus: React.FC<TokenStatusProps> = ({
       if (onRefreshToken) {
         await onRefreshToken();
       } else {
-        // Відправляємо повідомлення в background script для оновлення токена
         const response = await chrome.runtime.sendMessage({
           type: "REFRESH_TOKEN",
         });
 
         if (response?.success) {
-          // Оновлюємо локальний стан
           const newExpiration = new Date(response.expiresAt);
           setTokenExpiration(newExpiration);
         } else {
@@ -101,7 +96,6 @@ const TokenStatus: React.FC<TokenStatusProps> = ({
     }
   };
 
-  // Якщо користувач не автентифікований, показуємо повідомлення про необхідність входу
   if (!isAuthenticated) {
     return (
       <div className={`flex flex-col items-end space-y-2 ${className}`}>

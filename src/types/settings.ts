@@ -7,7 +7,6 @@ export enum Theme {
   DARK = "dark",
 }
 
-// Тип налаштувань
 export type SettingsConfig = {
   extensionActive: boolean;
   // theme: Theme;

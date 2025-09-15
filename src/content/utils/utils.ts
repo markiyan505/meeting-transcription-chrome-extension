@@ -1,9 +1,7 @@
-// Utility functions
 export function isExtensionContextValid(): boolean {
   try {
     return !!chrome.runtime?.id;
   } catch (error) {
-    console.log("Extension context invalidated");
     return false;
   }
 }
@@ -77,7 +75,6 @@ export function constrainToViewport(
   };
 }
 
-// Iframe management functions
 export function toggleIframeInteraction(
   iframe: HTMLIFrameElement,
   block: boolean
@@ -92,7 +89,6 @@ export const blockIframe = (iframe: HTMLIFrameElement) =>
 export const unblockIframe = (iframe: HTMLIFrameElement) =>
   toggleIframeInteraction(iframe, false);
 
-// Panel removal
 export function removeFloatPanel(panelIds: { CONTAINER: string }): void {
   const container = document.getElementById(panelIds.CONTAINER);
   if (container?.parentNode) {

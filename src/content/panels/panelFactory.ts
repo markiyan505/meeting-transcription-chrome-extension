@@ -8,7 +8,6 @@ import {
 import { setupDragLogic } from "./dragLogic";
 import { setupResizeLogic } from "./resizeLogic";
 
-// Unified panel creation function
 export function createFloatPanel(config: PanelConfig): void {
   if (
     !isExtensionContextValid() ||
@@ -44,11 +43,6 @@ export function createFloatPanel(config: PanelConfig): void {
     if (config.RESIZABLE) {
       setupResizeLogic(container, iframe, config.MIN_DIMENSIONS);
     }
-
-    console.log(`${config.PANEL_IDS.CONTAINER} injected successfully`);
-    console.log(
-      `🔍 [PANEL] Panel created with ID: ${config.PANEL_IDS.CONTAINER}`
-    );
   } catch (error) {
     console.error(`Failed to inject ${config.PANEL_IDS.CONTAINER}:`, error);
   }

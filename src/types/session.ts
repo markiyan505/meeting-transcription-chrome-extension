@@ -1,8 +1,4 @@
-/**
- * Типи для роботи з сесіями та даними
- */
 
-// Базові типи для субтитрів
 export interface CaptionEntry {
   id: string;
   speaker: string;
@@ -27,14 +23,12 @@ export interface MeetingInfo {
   platform: "google-meet" | "teams" | "unknown";
 }
 
-// Дані для відновлення сесії
 export interface HydrationData {
   captions: CaptionEntry[];
   chatMessages: ChatMessage[];
   meetingInfo: MeetingInfo;
 }
 
-// Уніфіковані дані сесії для збереження та бекапу
 export interface SessionData {
   id: string;
   timestamp: string;
@@ -48,7 +42,6 @@ export interface SessionData {
   isBackup?: boolean;
 }
 
-// Стан запису
 export interface RecordingState {
   isRecording: boolean;
   isPaused: boolean;
@@ -60,7 +53,6 @@ export interface RecordingState {
   attendeeCount: number;
 }
 
-// Формати експорту
 export type ExportFormat = "json" | "txt" | "srt" | "vtt" | "csv";
 
 export interface ExportOptions {
@@ -71,7 +63,6 @@ export interface ExportOptions {
   filename?: string;
 }
 
-// Результат операції
 export interface OperationResult {
   success: boolean;
   message?: string;

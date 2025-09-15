@@ -1,26 +1,19 @@
 /**
- * Головний модуль для роботи з субтитрами
- * Експортує всі необхідні класи та типи
+ * Main module for working with captions
+ * Exports all necessary classes and types
  */
 
-// Експорт типів
 export * from "./types";
-
-// Експорт основних класів
 export { AdapterFactory } from "./AdapterFactory";
 
-// Імпорт для використання в функціях
 import { AdapterFactory } from "./AdapterFactory";
 
-// Експорт адаптерів
 export { TranscriptonicAdapter } from "./adapters/TranscriptonicAdapter";
 export { LiveCaptionsAdapter } from "./adapters/LiveCaptionsAdapter";
-
-// Експорт утиліт
 export { logCaptionEvent, handleCaptionError } from "./utils";
 
 /**
- * Швидкий доступ до створення адаптера субтитрів
+ * Quick access to creating caption adapter
  */
 export async function createCaptionAdapterForCurrentPlatform(config?: any) {
   const factory = AdapterFactory.getInstance();
@@ -39,7 +32,7 @@ export async function createCaptionAdapterForCurrentPlatform(config?: any) {
 }
 
 /**
- * Перевіряє, чи підтримується поточна платформа
+ * Checks if current platform is supported
  */
 export function isCurrentPlatformSupported(): boolean {
   const factory = AdapterFactory.getInstance();
@@ -48,7 +41,7 @@ export function isCurrentPlatformSupported(): boolean {
 }
 
 /**
- * Отримує інформацію про поточну платформу
+ * Gets information about current platform
  */
 export function getCurrentPlatformInfo() {
   const factory = AdapterFactory.getInstance();

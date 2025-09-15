@@ -17,7 +17,6 @@ export class TranscriptonicAdapter extends BaseAdapter {
   private selectors: any;
   private observers: { [key: string]: MutationObserver } = {};
 
-  // Буферні змінні, специфічні для логіки Google Meet
   private personNameBuffer = "";
   private transcriptTextBuffer = "";
   private timestampBuffer = "";
@@ -25,7 +24,6 @@ export class TranscriptonicAdapter extends BaseAdapter {
   constructor(config: GoogleMeetConfig) {
     super(config);
     this.config = config;
-    // Визначаємо селектори на основі версії UI
     const uiType = this.detectUIType();
     this.selectors = {
       ...config.baseSelectors,
@@ -33,14 +31,12 @@ export class TranscriptonicAdapter extends BaseAdapter {
     };
   }
 
-  // --- Реалізація абстрактних методів з BaseAdapter ---
   async initialize(): Promise<OperationResult> {
     try {
       if (!window.location.hostname.includes("meet.google.com")) {
         return { success: false, error: "Not on a Google Meet page" };
       }
       this.setupMeetingStateObserver();
-      // this.setupMeetingDetection();
       this.initializeUserName();
       await this.updateMeetingInfo();
 
@@ -63,7 +59,6 @@ export class TranscriptonicAdapter extends BaseAdapter {
       );
       if (userNameElement?.textContent) {
         this.userName = userNameElement.textContent;
-        console.log(`User name captured: ${this.userName}`);
       }
     } catch (error) {
       console.warn("Could not capture user name, defaulting to 'You'.", error);
@@ -71,10 +66,6 @@ export class TranscriptonicAdapter extends BaseAdapter {
   }
 
   async isCaptionsEnabled(): Promise<boolean> {
-    // if (!(await this.isCaptionsButtonAvailable())) {
-    //   console.log("Captions button not available");
-    //   return false;
-    // }
     return document.querySelector(this.selectors.captionsContainer) !== null;
   }
 
@@ -137,12 +128,6 @@ export class TranscriptonicAdapter extends BaseAdapter {
     if (this.isRecording) {
       return { success: true, message: "Recording already started" };
     }
-    // if (!(await this.isCaptionsEnabled())) {
-    //   const enableResult = await this.enableCaptions();
-    //   if (!enableResult.success) {
-    //     return enableResult;
-    //   }
-    // }
     return super.startRecording();
   }
 
@@ -172,18 +157,7 @@ export class TranscriptonicAdapter extends BaseAdapter {
     return document.querySelector(".google-symbols") !== null ? 2 : 1;
   }
 
-  // private setupMeetingDetection(): void {
-  //   const checkMeetingStatus = async () => {
-  //     if ((await this.isInMeeting()) && !this.meetingInfo.startTime) {
-  //       this.meetingInfo.startTime = new Date().toISOString();
-  //       this.emit("meeting_started", { timestamp: this.meetingInfo.startTime });
-  //     }
-  //   };
-  //   setInterval(checkMeetingStatus, 5000);
-  //   checkMeetingStatus();
-  // }
-
-  private async updateMeetingInfo(): Promise<void> {
+    private async updateMeetingInfo(): Promise<void> {
     this.meetingInfo.title =
       document.querySelector(this.selectors.meetingTitle)?.textContent ||
       document.title;
@@ -273,7 +247,6 @@ export class TranscriptonicAdapter extends BaseAdapter {
       const lastMessage = chatContainer.lastChild as HTMLElement;
       if (!lastMessage) return;
 
-      // Селектори можуть змінюватися, це приклад для однієї з версій Meet
       const speakerElement = lastMessage.querySelector("[data-sender-name]");
       const messageElement = lastMessage.querySelector("[data-message-text]");
 
@@ -282,12 +255,11 @@ export class TranscriptonicAdapter extends BaseAdapter {
         const message = messageElement.textContent?.trim() || "";
 
         if (message) {
-          // Перевіряємо, чи це повідомлення вже було додано
           const isDuplicate = this.chatMessages.some(
             (cm) =>
               cm.speaker === speaker &&
               message.includes(cm.message) &&
-              new Date().getTime() - new Date(cm.timestamp).getTime() < 5000 // Запобіжник на 5 секунд
+              new Date().getTime() - new Date(cm.timestamp).getTime() < 5000 
           );
 
           if (!isDuplicate) {

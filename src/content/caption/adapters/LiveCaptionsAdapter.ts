@@ -23,10 +23,8 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   protected config: TeamsConfig;
   private selectors: any;
 
-  // Стан спостерігачів, специфічний для Teams
   private observers: { [key: string]: MutationObserver } = {};
 
-  // Кеш елементів для підвищення продуктивності
   private cachedElements = new Map<
     string,
     { element: Element; timestamp: number }
@@ -45,14 +43,11 @@ export class LiveCaptionsAdapter extends BaseAdapter {
     this.selectors = config.selectors;
   }
 
-  // --- Реалізація абстрактних методів з BaseAdapter ---
-
   async initialize(): Promise<OperationResult> {
     try {
       if (!this.isTeamsPage()) {
         return { success: false, error: "Not on a Microsoft Teams page" };
       }
-      // this.setupMeetingDetection();
       this.setupMeetingStateObserver();
       await this.updateMeetingInfo();
 
@@ -69,10 +64,6 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   }
 
   async isCaptionsEnabled(): Promise<boolean> {
-    // if (!(await this.isCaptionsButtonAvailable())) {
-    //   console.log("Captions button not available");
-    //   return false;
-    // }
     return this.getCachedElement(this.selectors.captionsContainer) !== null;
   }
 
@@ -136,7 +127,6 @@ export class LiveCaptionsAdapter extends BaseAdapter {
     return { success: true, message: "Cleanup completed successfully" };
   }
 
-  // --- Реалізація захищених методів для управління спостерігачами ---
 
   private async tryOpenParticipantPanel(): Promise<boolean> {
     if (!this.config.autoOpenAttendees) return true;
@@ -149,7 +139,6 @@ export class LiveCaptionsAdapter extends BaseAdapter {
         peopleButton &&
         peopleButton.getAttribute("aria-pressed") !== "true"
       ) {
-        console.log("Attempting to open participant panel...");
         peopleButton.click();
         await this.delay(500);
       }
@@ -185,7 +174,6 @@ export class LiveCaptionsAdapter extends BaseAdapter {
       const currentTime = new Date().toISOString();
       const previousAttendees = this.attendeeState.currentAttendees;
 
-      // Визначаємо, хто зайшов
       newAttendees.forEach((role, name) => {
         if (!previousAttendees.has(name)) {
           this.attendeeState.attendeeHistory.push({
@@ -198,7 +186,6 @@ export class LiveCaptionsAdapter extends BaseAdapter {
         }
       });
 
-      // Визначаємо, хто вийшов
       previousAttendees.forEach((role, name) => {
         if (!newAttendees.has(name)) {
           this.attendeeState.attendeeHistory.push({
@@ -232,7 +219,6 @@ export class LiveCaptionsAdapter extends BaseAdapter {
     this.observers = {};
   }
 
-  // --- Приватні методи, специфічні для Teams ---
 
   private isTeamsPage(): boolean {
     const hostname = window.location.hostname;
@@ -241,18 +227,6 @@ export class LiveCaptionsAdapter extends BaseAdapter {
       hostname.includes("teams.live.com")
     );
   }
-
-  // private setupMeetingDetection(): void {
-  //   const checkMeetingStatus = async () => {
-  //     const inMeeting = await this.isInMeeting();
-  //     if (inMeeting && !this.meetingInfo.startTime) {
-  //       this.meetingInfo.startTime = new Date().toISOString();
-  //       this.emit("meeting_started", { timestamp: this.meetingInfo.startTime });
-  //     }
-  //   };
-  //   setInterval(checkMeetingStatus, 5000);
-  //   checkMeetingStatus();
-  // }
 
   private async updateMeetingInfo(): Promise<void> {
     this.meetingInfo.title = document.title;
@@ -265,7 +239,6 @@ export class LiveCaptionsAdapter extends BaseAdapter {
     enable: boolean = true
   ): Promise<OperationResult> {
     try {
-      // Перевіряємо поточний стан перед дією
       const currentlyEnabled = await this.isCaptionsEnabled();
       if (enable && currentlyEnabled) {
         return { success: true, message: "Captions already enabled" };
@@ -390,8 +363,7 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   }
 
   private processChatUpdates(): void {
-    // Тут має бути логіка обробки повідомлень чату для Teams.
-    // Наприклад, зчитування останнього повідомлення та додавання його до масиву this.chatMessages.
+    
   }
 
   private getCachedElement(selector: string, expiry = 5000): Element | null {

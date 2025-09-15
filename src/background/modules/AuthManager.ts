@@ -1,11 +1,9 @@
-// src/background/modules/AuthManager.ts
 import { createClient, Session } from "@supabase/supabase-js";
 import {
   getSupabaseConfig,
   validateSupabaseConfig,
 } from "../../config/supabase";
 
-// Отримуємо конфігурацію Supabase
 const config = getSupabaseConfig();
 validateSupabaseConfig();
 
@@ -53,7 +51,7 @@ export class AuthManager {
       await this.clearSession();
     } else {
       console.log("[AuthManager] Token refreshed successfully.");
-      await this.saveSession(data.session, false); 
+      await this.saveSession(data.session, false);
     }
   }
 
@@ -75,17 +73,14 @@ export class AuthManager {
     );
   }
 
-  // Перевіряє чи користувач автентифікований
   static async isAuthenticated(): Promise<boolean> {
     const session = await this.getSession();
     if (!session || !session.expires_at) return false;
 
-    // Перевіряємо чи токен не закінчився
     const now = Math.floor(Date.now() / 1000);
     return session.expires_at > now;
   }
 
-  // Отримуємо час до закінчення токена
   static async getTokenExpiry(): Promise<Date | null> {
     const session = await this.getSession();
     if (!session || !session.expires_at) return null;
@@ -93,7 +88,6 @@ export class AuthManager {
     return new Date(session.expires_at * 1000);
   }
 
-  // Отримуємо час до закінчення в секундах
   static async getTokenExpiryInSeconds(): Promise<number> {
     const session = await this.getSession();
     if (!session || !session.expires_at) return 0;
@@ -102,13 +96,11 @@ export class AuthManager {
     return Math.max(0, session.expires_at - now);
   }
 
-  // Отримуємо інформацію про користувача
   static async getUser(): Promise<any> {
     const session = await this.getSession();
     return session?.user || null;
   }
 
-  // Валідуємо токен через Supabase
   static async validateToken(): Promise<boolean> {
     try {
       const {

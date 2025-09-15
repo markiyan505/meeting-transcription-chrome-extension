@@ -1,6 +1,6 @@
 /**
- * Фабрика для створення адаптерів субтитрів
- * Автоматично визначає платформу та створює відповідний адаптер
+ * Factory for creating caption adapters
+ * Automatically detects platform and creates appropriate adapter
  */
 
 import { CaptionAdapter, GoogleMeetConfig, TeamsConfig } from "./types";
@@ -31,7 +31,7 @@ export class AdapterFactory {
   }
 
   /**
-   * Визначає поточну платформу на основі URL
+   * Detects the current platform based on the URL
    */
   detectPlatform(): PlatformType {
     const hostname = window.location.hostname.toLowerCase();
@@ -49,7 +49,7 @@ export class AdapterFactory {
   }
 
   /**
-   * Створює адаптер для вказаної платформи
+   * Creates an adapter for the specified platform
    */
   createAdapter(
     platform: PlatformType,
@@ -65,20 +65,18 @@ export class AdapterFactory {
 
     switch (platform) {
       case "google-meet":
-        // Використовуємо конфігурацію з config.ts
         const googleMeetConfigInstance: GoogleMeetConfig = {
           ...googleMeetConfig,
           ...defaultConfig,
-          platform: "google-meet", // Явно вказуємо тип платформи
+          platform: "google-meet",
         };
         return new TranscriptonicAdapter(googleMeetConfigInstance);
 
       case "teams":
-        // Використовуємо конфігурацію з config.ts
         const teamsConfigInstance: TeamsConfig = {
           ...teamsConfig,
           ...defaultConfig,
-          platform: "teams", // Явно вказуємо тип платформи
+          platform: "teams",
         };
         return new LiveCaptionsAdapter(teamsConfigInstance);
 
@@ -89,7 +87,7 @@ export class AdapterFactory {
   }
 
   /**
-   * Автоматично створює адаптер для поточної платформи
+   * Automatically creates an adapter for the current platform
    */
   createAdapterForCurrentPlatform(
     config: AdapterFactoryConfig = {}
@@ -99,21 +97,21 @@ export class AdapterFactory {
   }
 
   /**
-   * Отримує поточний адаптер
+   * Gets the current adapter
    */
   getCurrentAdapter(): CaptionAdapter | null {
     return this.currentAdapter;
   }
 
   /**
-   * Встановлює поточний адаптер
+   * Sets the current adapter
    */
   setCurrentAdapter(adapter: CaptionAdapter | null): void {
     this.currentAdapter = adapter;
   }
 
   /**
-   * Очищає поточний адаптер
+   * Cleans up the current adapter
    */
   async cleanup(): Promise<void> {
     if (this.currentAdapter) {
@@ -123,21 +121,21 @@ export class AdapterFactory {
   }
 
   /**
-   * Перевіряє, чи підтримується поточна платформа
+   * Checks if the current platform is supported
    */
   isPlatformSupported(platform: PlatformType): boolean {
     return ["google-meet", "teams"].includes(platform);
   }
 
   /**
-   * Отримує список підтримуваних платформ
+   * Gets the list of supported platforms
    */
   getSupportedPlatforms(): PlatformType[] {
     return ["google-meet", "teams"];
   }
 
   /**
-   * Отримує інформацію про платформу
+   * Gets the information about the platform
    */
   getPlatformInfo(platform: PlatformType): {
     name: string;

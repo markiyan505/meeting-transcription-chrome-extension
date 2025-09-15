@@ -108,10 +108,10 @@ const HomeTab: React.FC<HomeTabProps> = ({
           </Typography>
           <LastRecord
             record={lastRecord}
-            onSyncRecord={(id) => console.log("Sync record:", id)}
-            onOpenRecord={(id) => console.log("Open record:", id)}
-            onExportRecord={(id) => console.log("Export record:", id)}
-            onDeleteRecord={(id) => console.log("Delete record:", id)}
+            onSyncRecord={() => {}}
+            onOpenRecord={() => {}}
+            onExportRecord={() => {}}
+            onDeleteRecord={() => {}}
           />
         </div>
       )}

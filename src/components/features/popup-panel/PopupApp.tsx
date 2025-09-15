@@ -59,7 +59,7 @@ const PopupApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>("home");
   const [statusMessage, setStatusMessage] = useState<string>("");
 
-  // Встановлюємо statusMessage на основі isSupportedPlatform
+  // Set statusMessage based on isSupportedPlatform
   useEffect(() => {
     if (!isSupportedPlatform) {
       setStatusMessage(
@@ -89,11 +89,6 @@ const PopupApp: React.FC = () => {
   const handleSettingChange = (key: string, value: any) => {
     setProfileSettings((prev) => ({ ...prev, [key]: value }));
     if (key === "theme") setTheme(value);
-  };
-
-  const handleExportData = () => {
-    console.log("Export all data");
-    // Export all data functionality
   };
 
   const lastRecord = records.length > 0 ? records[0] : undefined;
@@ -129,8 +124,8 @@ const PopupApp: React.FC = () => {
         {activeTab === "records" && (
           <RecordsTab
             records={records}
-            onViewRecord={(id) => console.log("View:", id)}
-            onExportRecord={(id) => console.log("Export:", id)}
+            onViewRecord={() => {}}
+            onExportRecord={() => {}}
             onDeleteRecord={handleDeleteRecord}
             onSyncRecord={handleSyncRecord}
           />

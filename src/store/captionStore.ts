@@ -1,7 +1,6 @@
 import { create } from "zustand";
-import { MessageType } from "@/types/messages"; // Використовуємо наш новий enum
+import { MessageType } from "@/types/messages";
 import { errorType } from "@/components/features/meet-control-panel/types";
-
 
 export interface CaptionState {
   isInitialized: boolean;

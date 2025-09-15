@@ -1,5 +1,5 @@
 /**
- * SessionManager - управління сесіями, пам'яттю та бекапами
+ * SessionManager - manages sessions, memory and backups
  */
 
 import type { SessionData } from "../../types/session";
@@ -14,14 +14,14 @@ const CAPTION_STORAGE_KEYS = {
 
 export class SessionManager {
   /**
-   * Генерує унікальний ID сесії
+   * Generates unique session ID
    */
   private static generateSessionId(): string {
     return `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 
   /**
-   * Створює уніфіковані дані сесії для збереження або бекапу
+   * Creates unified session data for saving or backup
    */
   static createSessionData(
     message: any,
@@ -59,7 +59,7 @@ export class SessionManager {
   }
 
   /**
-   * Перевіряє, чи містить бекап хоча б якісь дані
+   * Checks if backup contains any data
    */
   static hasData(backupData: any): boolean {
     if (!backupData) return false;
@@ -75,24 +75,27 @@ export class SessionManager {
     return hasCaptions || hasChatMessages || hasAttendeeReport;
   }
 
-
-  static async getSessionDataForExport(sessionId?: string): Promise<SessionData | null> {
+  static async getSessionDataForExport(
+    sessionId?: string
+  ): Promise<SessionData | null> {
     if (sessionId) {
       const historyResult = await this.getSessionHistory();
       if (historyResult.success && historyResult.data) {
-        return historyResult.data.find((session: SessionData) => session.id === sessionId) || null;
+        return (
+          historyResult.data.find(
+            (session: SessionData) => session.id === sessionId
+          ) || null
+        );
       }
       return null;
     } else {
-      // Повертаємо останню збережену сесію
-      const { [CAPTION_STORAGE_KEYS.LAST_SESSION]: current } = await chrome.storage.local.get(
-        CAPTION_STORAGE_KEYS.LAST_SESSION
-      );
+      const { [CAPTION_STORAGE_KEYS.LAST_SESSION]: current } =
+        await chrome.storage.local.get(CAPTION_STORAGE_KEYS.LAST_SESSION);
       return current || null;
     }
   }
   /**
-   * Зберігає дані сесії
+   * Saves session data
    */
   static async saveSessionData(
     message: any,
@@ -108,15 +111,7 @@ export class SessionManager {
     try {
       const sessionData = this.createSessionData(message, sender, false);
 
-      // Перевіряємо, чи є в записі хоча б якісь дані
       if (!this.hasData(sessionData)) {
-        console.log("⚠️ [SAVE] Session contains no data, skipping save:", {
-          id: sessionData.id,
-          captions: sessionData.captions?.length || 0,
-          chatMessages: sessionData.chatMessages?.length || 0,
-          attendeeReport: !!sessionData.attendeeReport,
-          meetingInfo: !!sessionData.meetingInfo,
-        });
 
         return {
           success: false,
@@ -126,30 +121,20 @@ export class SessionManager {
         };
       }
 
-      // Save current session
       await chrome.storage.local.set({
         [CAPTION_STORAGE_KEYS.LAST_SESSION]: sessionData,
       });
 
-      // Add to history
       const { [CAPTION_STORAGE_KEYS.HISTORY]: history = [] } =
         await chrome.storage.local.get(CAPTION_STORAGE_KEYS.HISTORY);
-      const updatedHistory = [sessionData, ...history].slice(0, 50); // Keep last 50 sessions
+      const updatedHistory = [sessionData, ...history].slice(0, 50); 
 
       await chrome.storage.local.set({
         [CAPTION_STORAGE_KEYS.HISTORY]: updatedHistory,
       });
 
-      // Очищаємо бекап після успішного збереження
       await chrome.storage.local.remove(CAPTION_STORAGE_KEYS.BACKUP);
 
-      console.log("✅ [SAVE] Caption data saved:", {
-        id: sessionData.id,
-        captions: sessionData.captions?.length || 0,
-        chatMessages: sessionData.chatMessages?.length || 0,
-        attendeeReport: !!sessionData.attendeeReport,
-        meetingInfo: !!sessionData.meetingInfo,
-      });
 
       return { success: true, sessionId: sessionData.id };
     } catch (error) {
@@ -162,7 +147,7 @@ export class SessionManager {
   }
 
   /**
-   * Створює бекап даних сесії
+   * Creates session data backup
    */
   static async createBackup(
     message: any,
@@ -171,16 +156,8 @@ export class SessionManager {
     try {
       const backupData = this.createSessionData(message, sender, true);
 
-      // Зберігаємо бекап, замінюючи попередній бекап для цієї сесії
       await chrome.storage.local.set({
         [CAPTION_STORAGE_KEYS.BACKUP]: backupData,
-      });
-
-      console.log("💾 [BACKUP] Caption data backed up:", {
-        id: backupData.id,
-        captionCount: backupData.captions.length,
-        chatMessageCount: backupData.chatMessages.length,
-        timestamp: backupData.timestamp,
       });
 
       return { success: true, backupId: backupData.id };
@@ -194,7 +171,7 @@ export class SessionManager {
   }
 
   /**
-   * Отримує історію сесій
+   * Gets session history
    */
   static async getSessionHistory(): Promise<{
     success: boolean;
@@ -215,7 +192,7 @@ export class SessionManager {
   }
 
   /**
-   * Очищає історію сесій
+   * Clears session history
    */
   static async clearSessionHistory(): Promise<{
     success: boolean;
@@ -226,7 +203,6 @@ export class SessionManager {
         CAPTION_STORAGE_KEYS.HISTORY,
         CAPTION_STORAGE_KEYS.LAST_SESSION,
       ]);
-      console.log("Caption history cleared");
       return { success: true };
     } catch (error) {
       console.error("Failed to clear caption history:", error);
@@ -238,7 +214,7 @@ export class SessionManager {
   }
 
   /**
-   * Додає бекап в історію
+   * Adds backup to history
    */
   static async addBackupToHistory(): Promise<{
     success: boolean;
@@ -254,15 +230,8 @@ export class SessionManager {
         return { success: false, error: "No backup data found" };
       }
 
-      // Перевіряємо, чи є в бекапі хоча б якісь дані
       if (!this.hasData(backupData)) {
-        console.log("⚠️ [BACKUP] Backup contains no data, skipping history:", {
-          id: backupData.id,
-          captions: backupData.captions?.length || 0,
-          chatMessages: backupData.chatMessages?.length || 0,
-          attendeeReport: !!backupData.attendeeReport,
-          meetingInfo: !!backupData.meetingInfo,
-        });
+
         return {
           success: true,
           skipped: true,
@@ -270,7 +239,6 @@ export class SessionManager {
         };
       }
 
-      // Додаємо бекап в історію
       const { [CAPTION_STORAGE_KEYS.HISTORY]: history = [] } =
         await chrome.storage.local.get(CAPTION_STORAGE_KEYS.HISTORY);
 
@@ -280,13 +248,6 @@ export class SessionManager {
         [CAPTION_STORAGE_KEYS.HISTORY]: updatedHistory,
       });
 
-      console.log("✅ [BACKUP] Backup added to history:", {
-        id: backupData.id,
-        captions: backupData.captions?.length || 0,
-        chatMessages: backupData.chatMessages?.length || 0,
-        attendeeReport: !!backupData.attendeeReport,
-        meetingInfo: !!backupData.meetingInfo,
-      });
 
       return { success: true };
     } catch (error) {
@@ -299,7 +260,7 @@ export class SessionManager {
   }
 
   /**
-   * Перевіряє та відновлює бекап при вході в зустріч
+   * Checks and restores backup when entering meeting
    */
   static async checkBackupRecovery(
     message: any,
@@ -323,17 +284,10 @@ export class SessionManager {
       const currentUrl = message.currentUrl || sender.tab?.url || "unknown";
       const backupUrl = backupData.url;
 
-      // Перевіряємо, чи це та ж зустріч (порівнюємо URL)
       const isSameMeeting = this.isSameMeetingUrl(currentUrl, backupUrl);
 
       if (isSameMeeting) {
         await this.removeBackupFromHistory(backupData.id);
-
-        console.log("🔄 [RECOVERY] Recovering backup for same meeting:", {
-          currentUrl,
-          backupUrl,
-          captionCount: backupData.captions?.length || 0,
-        });
 
         return {
           success: true,
@@ -342,13 +296,7 @@ export class SessionManager {
           source: "backup",
         };
       } else {
-        // Інша зустріч - просто видаляємо бекап
         await chrome.storage.local.remove(CAPTION_STORAGE_KEYS.BACKUP);
-
-        console.log("🧹 [CLEANUP] Cleared backup for different meeting:", {
-          currentUrl,
-          backupUrl,
-        });
 
         return {
           success: true,
@@ -366,7 +314,7 @@ export class SessionManager {
   }
 
   /**
-   * Очищає бекап дані
+   * Clears backup data
    */
   static async clearBackup(): Promise<{
     success: boolean;
@@ -374,11 +322,7 @@ export class SessionManager {
     error?: string;
   }> {
     try {
-      console.log("🧹 [CLEAR BACKUP] Clearing caption backup data...");
-
-      // Очищаємо backup
       await chrome.storage.local.remove(CAPTION_STORAGE_KEYS.BACKUP);
-      console.log("✅ [CLEAR BACKUP] Caption backup cleared successfully");
 
       return {
         success: true,
@@ -394,7 +338,7 @@ export class SessionManager {
   }
 
   /**
-   * Очищає порожні записи з історії
+   * Clears empty entries from history
    */
   static async cleanupEmptyHistoryEntries(): Promise<void> {
     try {
@@ -410,11 +354,6 @@ export class SessionManager {
           [CAPTION_STORAGE_KEYS.HISTORY]: cleanedHistory,
         });
 
-        console.log(
-          `🧹 [CLEANUP] Removed ${
-            history.length - cleanedHistory.length
-          } empty entries from history`
-        );
       }
     } catch (error) {
       console.error(
@@ -425,7 +364,7 @@ export class SessionManager {
   }
 
   /**
-   * Перевіряє, чи це та ж зустріч за URL
+   * Checks if the same meeting URL
    */
   private static isSameMeetingUrl(
     currentUrl: string,
@@ -435,7 +374,6 @@ export class SessionManager {
       const current = new URL(currentUrl);
       const backup = new URL(backupUrl);
 
-      // Порівнюємо домен та шлях (без query параметрів)
       return (
         current.hostname === backup.hostname &&
         current.pathname === backup.pathname
@@ -446,7 +384,7 @@ export class SessionManager {
   }
 
   /**
-   * Видаляє бекап з історії за ID
+   * Removes backup from history by ID
    */
   private static async removeBackupFromHistory(
     backupId: string
@@ -461,12 +399,10 @@ export class SessionManager {
     await chrome.storage.local.set({
       [CAPTION_STORAGE_KEYS.HISTORY]: updatedHistory,
     });
-
-    console.log("🗑️ [CLEANUP] Removed backup from history:", backupId);
   }
 
   /**
-   * Експортує сесію (заміна для handleExportCaptionData)
+   * Exports the session (replacement for handleExportCaptionData)
    */
   static async exportSession(
     sessionId?: string,
@@ -476,7 +412,6 @@ export class SessionManager {
       let sessionData;
 
       if (sessionId) {
-        // Get specific session from history
         const historyResult = await this.getSessionHistory();
         if (!historyResult.success || !historyResult.data) {
           return { success: false, error: "Failed to get history" };
@@ -485,7 +420,6 @@ export class SessionManager {
           (session: any) => session.id === sessionId
         );
       } else {
-        // Get current session
         const { currentCaptionSession: current } =
           await chrome.storage.local.get("currentCaptionSession");
         sessionData = current;

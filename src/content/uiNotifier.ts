@@ -1,11 +1,10 @@
 /**
- * Модуль для відображення UI повідомлень користувачу
- * Винесено з captionIntegration.ts для покращення архітектури
+ * Module for displaying UI messages to the user
  */
 
 export type NotificationType = "success" | "error" | "warning" | "info";
 
-// Глобальна черга повідомлень
+// Global queue of messages
 let notificationQueue: Array<{
   id: string;
   element: HTMLElement;
@@ -18,11 +17,11 @@ let notificationQueue: Array<{
 
 let notificationContainer: HTMLElement | null = null;
 
-// Максимальна кількість повідомлень одночасно
+// Maximum number of messages at once
 const MAX_NOTIFICATIONS = 3;
 
 /**
- * Ініціалізує контейнер для повідомлень
+ * Initializes the container for messages
  */
 function initializeNotificationContainer() {
   if (notificationContainer) return;
@@ -35,23 +34,21 @@ function initializeNotificationContainer() {
 }
 
 /**
- * Оновлює позиції всіх повідомлень
+ * Updates the positions of all messages
  */
 function updateNotificationPositions() {
   notificationQueue.forEach((notification, index) => {
-    // Використовуємо margin-top замість transform для кращої сумісності з flexbox
     if (index === 0) {
       notification.element.style.marginTop = "0px";
     } else {
-      notification.element.style.marginTop = "8px"; // gap між повідомленнями
+      notification.element.style.marginTop = "8px"; 
     }
-    // Скидаємо transform для вертикального позиціонування
     notification.element.style.transform = "none";
   });
 }
 
 /**
- * Видаляє повідомлення з черги
+ * Removes a message from the queue
  */
 function removeNotificationFromQueue(id: string) {
   const index = notificationQueue.findIndex((n) => n.id === id);
@@ -62,7 +59,7 @@ function removeNotificationFromQueue(id: string) {
 }
 
 /**
- * Видаляє найстаріше повідомлення з черги
+ * Removes the oldest message from the queue
  */
 function removeOldestNotification() {
   if (notificationQueue.length > 0) {
@@ -74,7 +71,7 @@ function removeOldestNotification() {
 }
 
 /**
- * Перевіряє, чи існує вже таке ж повідомлення
+ * Checks if a message already exists
  */
 function isDuplicateNotification(
   message: string,
@@ -87,7 +84,7 @@ function isDuplicateNotification(
 }
 
 /**
- * Оновлює існуюче повідомлення (скидає таймер та збільшує лічильник)
+ * Updates an existing message (resets the timer and increases the counter)
  */
 function updateExistingNotification(
   message: string,
@@ -99,32 +96,24 @@ function updateExistingNotification(
   );
 
   if (existing) {
-    // Скидаємо старий таймер
     clearTimeout(existing.timeoutId);
 
-    // Збільшуємо лічильник
     existing.count++;
 
-    // Оновлюємо текст повідомлення
     if (existing.count > 1) {
       existing.element.textContent = `${existing.originalMessage} (${existing.count})`;
     } else {
       existing.element.textContent = existing.originalMessage;
     }
 
-    // Встановлюємо новий таймер
     existing.timeoutId = window.setTimeout(() => {
       removeNotification(existing.id);
     }, 5000);
-
-    console.log(
-      `[NOTIFICATION] Updated existing: ${message} (count: ${existing.count})`
-    );
   }
 }
 
 /**
- * Показує повідомлення користувачу про стан субтитрів
+ * Shows a message to the user about the caption status
  */
 export function showCaptionNotification(
   message: string,
@@ -132,13 +121,11 @@ export function showCaptionNotification(
 ) {
   initializeNotificationContainer();
 
-  // Перевіряємо на дублікати та оновлюємо існуюче
   if (isDuplicateNotification(message, type)) {
     updateExistingNotification(message, type);
     return;
   }
 
-  // Якщо досягли ліміту, видаляємо найстаріше повідомлення
   if (notificationQueue.length >= MAX_NOTIFICATIONS) {
     removeOldestNotification();
   }
@@ -152,15 +139,12 @@ export function showCaptionNotification(
   notification.textContent = message;
   notification.dataset.notificationId = id;
 
-  // Додаємо в контейнер
   notificationContainer!.appendChild(notification);
 
-  // Автоматично прибираємо повідомлення через 5 секунд
   const timeoutId = window.setTimeout(() => {
     removeNotification(id);
   }, 5000);
 
-  // Додаємо в чергу
   notificationQueue.push({
     id,
     element: notification,
@@ -171,29 +155,25 @@ export function showCaptionNotification(
     timeoutId,
   });
 
-  // Анімація появи
   requestAnimationFrame(() => {
     notification.classList.add("notification-visible");
     updateNotificationPositions();
   });
 
-  // Обробник кліку для закриття
   notification.addEventListener("click", () => {
     removeNotification(id);
   });
 }
 
 /**
- * Видаляє повідомлення
+ * Removes a message
  */
 function removeNotification(id: string) {
   const notification = notificationQueue.find((n) => n.id === id);
   if (!notification) return;
 
-  // Скасовуємо timeout
   clearTimeout(notification.timeoutId);
 
-  // Анімація зникнення
   notification.element.classList.remove("notification-visible");
   notification.element.classList.add("notification-hidden");
 
@@ -206,7 +186,7 @@ function removeNotification(id: string) {
 }
 
 /**
- * Очищає всі повідомлення
+ * Clears all messages
  */
 export function clearAllNotifications() {
   notificationQueue.forEach((notification) => {
@@ -215,7 +195,7 @@ export function clearAllNotifications() {
 }
 
 /**
- * Очищає дублікати повідомлень
+ * Clears duplicate messages
  */
 export function clearDuplicateNotifications() {
   const seen = new Set<string>();
@@ -231,39 +211,38 @@ export function clearDuplicateNotifications() {
   });
 
   toRemove.forEach((id) => removeNotification(id));
-  console.log(`[NOTIFICATION] Removed ${toRemove.length} duplicates`);
 }
 
 /**
- * Показує повідомлення про помилку
+ * Shows an error message
  */
 export function showErrorNotification(message: string) {
   showCaptionNotification(message, "error");
 }
 
 /**
- * Показує повідомлення про успіх
+ * Shows a success message
  */
 export function showSuccessNotification(message: string) {
   showCaptionNotification(message, "success");
 }
 
 /**
- * Показує попереджувальне повідомлення
+ * Shows a warning message
  */
 export function showWarningNotification(message: string) {
   showCaptionNotification(message, "warning");
 }
 
 /**
- * Показує інформаційне повідомлення
+ * Shows an informational message
  */
 export function showInfoNotification(message: string) {
   showCaptionNotification(message, "info");
 }
 
 /**
- * Показує повідомлення з можливістю дії
+ * Shows a message with an action
  */
 export function showActionNotification(
   message: string,
@@ -273,7 +252,6 @@ export function showActionNotification(
 ) {
   initializeNotificationContainer();
 
-  // Якщо досягли ліміту, видаляємо найстаріше повідомлення
   if (notificationQueue.length >= MAX_NOTIFICATIONS) {
     removeOldestNotification();
   }
@@ -293,15 +271,12 @@ export function showActionNotification(
     </button>
   `;
 
-  // Додаємо в контейнер
   notificationContainer!.appendChild(notification);
 
-  // Автоматично прибираємо повідомлення через 8 секунд (довше для дій)
   const timeoutId = window.setTimeout(() => {
     removeNotification(id);
   }, 8000);
 
-  // Додаємо в чергу
   notificationQueue.push({
     id,
     element: notification,
@@ -312,13 +287,11 @@ export function showActionNotification(
     timeoutId,
   });
 
-  // Анімація появи
   requestAnimationFrame(() => {
     notification.classList.add("notification-visible");
     updateNotificationPositions();
   });
 
-  // Обробник кліку на кнопку
   const button = notification.querySelector("button");
   if (button) {
     button.addEventListener("click", (e) => {
@@ -328,7 +301,6 @@ export function showActionNotification(
     });
   }
 
-  // Обробник кліку на повідомлення для закриття
   notification.addEventListener("click", () => {
     removeNotification(id);
   });

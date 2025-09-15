@@ -42,7 +42,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
     this.meetingInfo.platform = config.platform as any;
   }
 
-  // Абстрактні методи, які повинні бути реалізовані в дочірніх класах
   abstract initialize(): Promise<OperationResult>;
   abstract isCaptionsEnabled(): Promise<boolean>;
   abstract isInMeeting(): Promise<boolean>;
@@ -50,7 +49,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
   abstract disableCaptions(): Promise<OperationResult>;
   abstract isCaptionsButtonAvailable(): Promise<boolean>;
 
-  // Абстрактні методи для управління спостерігачами
   protected abstract setupPlatformObservers(): void;
   protected abstract cleanupPlatformObservers(): void;
 
@@ -71,7 +69,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
       childList: true,
       subtree: true,
     });
-    // Первинна перевірка стану
     this.handleMeetingStateChange();
   }
 
@@ -79,9 +76,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
     const nowInMeeting = await this.isInMeeting();
 
     if (this.wasInMeeting !== nowInMeeting) {
-      console.log(
-        `Meeting state changed: ${this.wasInMeeting} -> ${nowInMeeting}`
-      );
       if (nowInMeeting) {
         this.meetingInfo.startTime = new Date().toISOString();
         this.emit("meeting_started", { timestamp: this.meetingInfo.startTime });
@@ -111,11 +105,9 @@ export abstract class BaseAdapter implements CaptionAdapter {
     this.captions = data.captions || [];
     this.chatMessages = data.chatMessages || [];
     this.meetingInfo = data.meetingInfo || this.meetingInfo;
-    console.log("Adapter state hydrated from previous session.");
     this.emit("hydrated", { captionCount: this.captions.length });
   }
 
-  // Реалізація спільних методів
   async getRecordingState(): Promise<RecordingState> {
     return {
       isRecording: this.isRecording,
@@ -137,10 +129,7 @@ export abstract class BaseAdapter implements CaptionAdapter {
     try {
       const captionsEnabled = await this.isCaptionsEnabled();
       if (!captionsEnabled) {
-        console.log(
-          "⚠️ [CAPTIONS] Captions not enabled, attempting to enable..."
-        );
-
+ 
         const enableResult = await this.enableCaptions();
         if (!enableResult.success) {
           return {
@@ -161,7 +150,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
           };
         }
 
-        console.log("✅ [CAPTIONS] Captions confirmed working.");
       }
 
       this.isRecording = true;
@@ -278,7 +266,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
     };
   }
 
-  // Система подій
   on(event: string, callback: (data: any) => void): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, []);

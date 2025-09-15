@@ -10,7 +10,6 @@ export const useSyncCaptionStore = () => {
   const syncStateRef = useRef(_syncState);
   syncStateRef.current = _syncState;
 
-  // Відстежуємо зміни isExtensionEnabled
   const prevExtensionEnabledRef = useRef(isExtensionEnabled);
 
   useEffect(() => {
@@ -24,10 +23,6 @@ export const useSyncCaptionStore = () => {
 
         if (isMounted && initialState) {
           syncStateRef.current(initialState);
-          console.log(
-            "[SYNC-HOOK] Initial state synced from background:",
-            initialState
-          );
         }
       } catch (error) {
         console.warn(
@@ -41,10 +36,6 @@ export const useSyncCaptionStore = () => {
           );
           if (isMounted && result[CAPTION_STATE_STORAGE_KEY]) {
             syncStateRef.current(result[CAPTION_STATE_STORAGE_KEY]);
-            console.log(
-              "[SYNC-HOOK] Initial state synced from storage (fallback):",
-              result[CAPTION_STATE_STORAGE_KEY]
-            );
           }
         } catch (storageError) {
           console.error(
@@ -59,15 +50,10 @@ export const useSyncCaptionStore = () => {
       changes: { [key: string]: chrome.storage.StorageChange },
       areaName: "sync" | "local" | "session" | "managed"
     ) => {
-      // Нас цікавлять лише зміни в session storage і лише для нашого ключа
       if (areaName === "session" && changes[CAPTION_STATE_STORAGE_KEY]) {
         const newState = changes[CAPTION_STATE_STORAGE_KEY].newValue;
         if (newState) {
           syncStateRef.current(newState);
-          console.log(
-            "[SYNC-HOOK] State updated from storage change:",
-            newState
-          );
         }
       }
     };
@@ -75,20 +61,11 @@ export const useSyncCaptionStore = () => {
     const handleRuntimeMessage = (message: any) => {
       if (message.type === MessageType.STATE_UPDATED && message.data) {
         syncStateRef.current(message.data);
-        console.log(
-          "[SYNC-HOOK] State updated from runtime message:",
-          message.data
-        );
       } else if (
         message.type === MessageType.TOGGLE_EXTENSION_STATE &&
         typeof message.isEnabled === "boolean"
       ) {
-        // Оновлюємо тільки isExtensionEnabled при отриманні TOGGLE_EXTENSION_STATE
         syncStateRef.current({ isExtensionEnabled: message.isEnabled });
-        console.log(
-          "[SYNC-HOOK] isExtensionEnabled updated from TOGGLE_EXTENSION_STATE:",
-          message.isEnabled
-        );
       }
     };
 
@@ -103,12 +80,8 @@ export const useSyncCaptionStore = () => {
     };
   }, []);
 
-  // Відстежуємо зміни isExtensionEnabled (тільки для логування)
   useEffect(() => {
     if (prevExtensionEnabledRef.current !== isExtensionEnabled) {
-      console.log(
-        `🔄 [SYNC-HOOK] isExtensionEnabled changed: ${prevExtensionEnabledRef.current} -> ${isExtensionEnabled}`
-      );
       prevExtensionEnabledRef.current = isExtensionEnabled;
     }
   }, [isExtensionEnabled]);

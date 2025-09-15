@@ -12,7 +12,6 @@ function createResizeHandle(handle: string): HTMLDivElement {
   resizeDiv.style.cssText = getResizeHandleStyle(handle);
   resizeDiv.setAttribute("data-resize", handle);
 
-  // Add hover effects
   resizeDiv.addEventListener("mouseenter", () => {
     const isCorner = ["nw", "ne", "sw", "se"].includes(handle);
     const color = isCorner
@@ -73,7 +72,6 @@ function calculateResizeDimensions(
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
 
-  // Handle horizontal resizing
   if (handle.includes("w")) {
     const proposedWidth = startWidth - deltaX;
     const proposedLeft = startLeft + deltaX;
@@ -104,7 +102,6 @@ function calculateResizeDimensions(
     }
   }
 
-  // Handle vertical resizing
   if (handle.includes("n")) {
     const proposedHeight = startHeight - deltaY;
     const proposedTop = startTop + deltaY;
@@ -138,7 +135,6 @@ function calculateResizeDimensions(
   return { width: newWidth, height: newHeight, left: newLeft, top: newTop };
 }
 
-// Resize functionality
 export function setupResizeLogic(
   element: HTMLElement,
   iframe: HTMLIFrameElement,
@@ -155,7 +151,6 @@ export function setupResizeLogic(
     startTop: 0,
   };
 
-  // Create resize handles
   RESIZE_HANDLES.forEach((handle) => {
     const resizeDiv = createResizeHandle(handle);
     element.appendChild(resizeDiv);

@@ -73,11 +73,9 @@ const FloatPanelSubtitles: React.FC = () => {
   useEffect(() => {
     (window as any).addSubtitle = addSubtitle;
     (window as any).clearSubtitles = clearSubtitles;
-    console.log("FloatPanelSubtitles: functions exposed to window");
     return () => {
       delete (window as any).addSubtitle;
       delete (window as any).clearSubtitles;
-      console.log("FloatPanelSubtitles: functions removed from window");
     };
   }, [addSubtitle, clearSubtitles]);
 

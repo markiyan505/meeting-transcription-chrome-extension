@@ -38,17 +38,14 @@ function initializeContentScript(): void {
 
   // Setup message handlers for panels
   setupWindowMessageHandler();
-  // Create float panel (прихована за замовчуванням до початку зустрічі)
   createFloatPanel(CONTROL_PANEL);
 
   // Setup caption message handler
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log("📨 [CONTENT] Message received in content.ts:", message);
     handleCaptionMessages(message, sender, sendResponse).catch((error) => {
-      console.error("📨 [CONTENT] Error handling message:", error);
       sendResponse({ success: false, error: error.message });
     });
-    return true; // Вказуємо що відповідь буде асинхронною
+    return true;
   });
 
   // Setup event listeners
