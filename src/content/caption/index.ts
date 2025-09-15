@@ -7,11 +7,9 @@
 export * from "./types";
 
 // Експорт основних класів
-export { CaptionManager } from "./CaptionManager";
 export { AdapterFactory } from "./AdapterFactory";
 
 // Імпорт для використання в функціях
-import { CaptionManager } from "./CaptionManager";
 import { AdapterFactory } from "./AdapterFactory";
 
 // Експорт адаптерів
@@ -19,16 +17,12 @@ export { TranscriptonicAdapter } from "./adapters/TranscriptonicAdapter";
 export { LiveCaptionsAdapter } from "./adapters/LiveCaptionsAdapter";
 
 // Експорт утиліт
-export {
-  createCaptionManager,
-  logCaptionEvent,
-  handleCaptionError,
-} from "./utils";
+export { logCaptionEvent, handleCaptionError } from "./utils";
 
 /**
- * Швидкий доступ до створення менеджера субтитрів
+ * Швидкий доступ до створення адаптера субтитрів
  */
-export async function createCaptionManagerForCurrentPlatform(config?: any) {
+export async function createCaptionAdapterForCurrentPlatform(config?: any) {
   const factory = AdapterFactory.getInstance();
   const adapter = factory.createAdapterForCurrentPlatform(config);
 
@@ -36,10 +30,12 @@ export async function createCaptionManagerForCurrentPlatform(config?: any) {
     throw new Error("No adapter available for current platform");
   }
 
-  const manager = new CaptionManager();
-  await manager.initialize(adapter);
+  const initResult = await adapter.initialize();
+  if (!initResult.success) {
+    throw new Error(`Failed to initialize adapter: ${initResult.error}`);
+  }
 
-  return manager;
+  return adapter;
 }
 
 /**

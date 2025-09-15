@@ -69,6 +69,10 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   }
 
   async isCaptionsEnabled(): Promise<boolean> {
+    // if (!(await this.isCaptionsButtonAvailable())) {
+    //   console.log("Captions button not available");
+    //   return false;
+    // }
     return this.getCachedElement(this.selectors.captionsContainer) !== null;
   }
 
@@ -77,14 +81,11 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   }
 
   async enableCaptions(): Promise<OperationResult> {
-    if (this.autoEnableInProgress) {
-      return { success: false, error: "Auto-enable is already in progress." };
-    }
     try {
       if (await this.isCaptionsEnabled()) {
         return { success: true, message: "Captions are already enabled" };
       }
-      const result = await this.attemptAutoEnableCaptions();
+      const result = await this.attemptAutoEnableCaptions(true);
       if (result.success) {
         this.emit("captions_enabled", { timestamp: new Date().toISOString() });
       }
@@ -103,7 +104,7 @@ export class LiveCaptionsAdapter extends BaseAdapter {
       if (!(await this.isCaptionsEnabled())) {
         return { success: true, message: "Captions are already disabled" };
       }
-      const result = await this.attemptAutoEnableCaptions();
+      const result = await this.attemptAutoEnableCaptions(false);
       if (result.success) {
         this.emit("captions_disabled", { timestamp: new Date().toISOString() });
       }
@@ -111,6 +112,19 @@ export class LiveCaptionsAdapter extends BaseAdapter {
     } catch (error) {
       this.emit("error", { context: "disable_captions", error });
       return { success: false, error: `Failed to enable captions: ${error}` };
+    }
+  }
+
+  async isCaptionsButtonAvailable(): Promise<boolean> {
+    try {
+      const button = document.querySelector(this.selectors.captionsButton);
+      return !!button;
+    } catch (error) {
+      console.error(
+        "Error while checking if captions button is available:",
+        error
+      );
+      return false;
     }
   }
 
@@ -247,8 +261,19 @@ export class LiveCaptionsAdapter extends BaseAdapter {
     }
   }
 
-  private async attemptAutoEnableCaptions(): Promise<OperationResult> {
+  private async attemptAutoEnableCaptions(
+    enable: boolean = true
+  ): Promise<OperationResult> {
     try {
+      // Перевіряємо поточний стан перед дією
+      const currentlyEnabled = await this.isCaptionsEnabled();
+      if (enable && currentlyEnabled) {
+        return { success: true, message: "Captions already enabled" };
+      }
+      if (!enable && !currentlyEnabled) {
+        return { success: true, message: "Captions already disabled" };
+      }
+
       const moreButton = this.getCachedElement(
         this.selectors.moreButton
       ) as HTMLElement;
@@ -273,7 +298,10 @@ export class LiveCaptionsAdapter extends BaseAdapter {
       captionsButton.click();
       await this.delay(400);
 
-      return { success: true, message: "Captions toggled successfully" };
+      return {
+        success: true,
+        message: `Captions ${enable ? "enabled" : "disabled"} successfully`,
+      };
     } catch (error) {
       return {
         success: false,

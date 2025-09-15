@@ -14,12 +14,6 @@ import {
   AdapterConfig,
   HydrationData,
 } from "../types";
-import {
-  formatAsText,
-  formatAsSRT,
-  formatAsVTT,
-  formatAsCSV,
-} from "../formatting";
 
 export abstract class BaseAdapter implements CaptionAdapter {
   protected config: AdapterConfig;
@@ -54,7 +48,8 @@ export abstract class BaseAdapter implements CaptionAdapter {
   abstract isInMeeting(): Promise<boolean>;
   abstract enableCaptions(): Promise<OperationResult>;
   abstract disableCaptions(): Promise<OperationResult>;
-  
+  abstract isCaptionsButtonAvailable(): Promise<boolean>;
+
   // Абстрактні методи для управління спостерігачами
   protected abstract setupPlatformObservers(): void;
   protected abstract cleanupPlatformObservers(): void;
@@ -66,25 +61,32 @@ export abstract class BaseAdapter implements CaptionAdapter {
       if (this.meetingStateDebounceTimer) {
         clearTimeout(this.meetingStateDebounceTimer);
       }
-      this.meetingStateDebounceTimer = setTimeout(() => this.handleMeetingStateChange(), 1000);
+      this.meetingStateDebounceTimer = setTimeout(
+        () => this.handleMeetingStateChange(),
+        1000
+      );
     });
 
-    this.meetingStateObserver.observe(document.body, { childList: true, subtree: true });
+    this.meetingStateObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
     // Первинна перевірка стану
     this.handleMeetingStateChange();
   }
 
   private async handleMeetingStateChange(): Promise<void> {
     const nowInMeeting = await this.isInMeeting();
-    
+
     if (this.wasInMeeting !== nowInMeeting) {
-      console.log(`Meeting state changed: ${this.wasInMeeting} -> ${nowInMeeting}`);
+      console.log(
+        `Meeting state changed: ${this.wasInMeeting} -> ${nowInMeeting}`
+      );
       if (nowInMeeting) {
-        // Увійшли в зустріч
         this.meetingInfo.startTime = new Date().toISOString();
         this.emit("meeting_started", { timestamp: this.meetingInfo.startTime });
       } else {
-        // Вийшли з зустрічі
+        this.meetingInfo.endTime = new Date().toISOString();
         this.emit("meeting_ended", { timestamp: new Date().toISOString() });
       }
       this.wasInMeeting = nowInMeeting;
@@ -97,7 +99,7 @@ export abstract class BaseAdapter implements CaptionAdapter {
       this.meetingStateObserver.disconnect();
       this.meetingStateObserver = null;
     }
-    if(this.meetingStateDebounceTimer) {
+    if (this.meetingStateDebounceTimer) {
       clearTimeout(this.meetingStateDebounceTimer);
     }
     this.eventListeners.clear();
@@ -123,6 +125,7 @@ export abstract class BaseAdapter implements CaptionAdapter {
       totalPauseDuration: this.totalPauseDuration,
       captionCount: this.captions.length,
       chatMessageCount: this.chatMessages.length,
+      attendeeCount: this.meetingInfo.attendees.length,
     };
   }
 
@@ -131,16 +134,49 @@ export abstract class BaseAdapter implements CaptionAdapter {
       return { success: true, message: "Recording already started" };
     }
 
-    this.isRecording = true;
-    this.isPaused = false;
-    this.recordingStartTime = new Date().toISOString();
-    this.totalPauseDuration = 0;
+    try {
+      const captionsEnabled = await this.isCaptionsEnabled();
+      if (!captionsEnabled) {
+        console.log(
+          "⚠️ [CAPTIONS] Captions not enabled, attempting to enable..."
+        );
 
-    this.clearDataInternal();
-    this.setupPlatformObservers();
+        const enableResult = await this.enableCaptions();
+        if (!enableResult.success) {
+          return {
+            success: false,
+            error: `[CAPTIONS] Failed to enable captions: ${enableResult.error}`,
+          };
+        }
 
-    this.emit("recording_started", { timestamp: this.recordingStartTime });
-    return { success: true, message: "Recording started successfully" };
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        if (!(await this.isCaptionsEnabled())) {
+          console.error(
+            "❌ [CAPTIONS] Final check failed. Captions are not enabled."
+          );
+          return {
+            success: false,
+            error: "Subtitles could not be activated.",
+          };
+        }
+
+        console.log("✅ [CAPTIONS] Captions confirmed working.");
+      }
+
+      this.isRecording = true;
+      this.isPaused = false;
+      this.recordingStartTime = new Date().toISOString();
+      this.totalPauseDuration = 0;
+
+      this.clearDataInternal();
+      this.setupPlatformObservers();
+
+      this.emit("recording_started", { timestamp: this.recordingStartTime });
+      return { success: true, message: "Recording started successfully" };
+    } catch (error) {
+      return { success: false, error: `Failed to start recording: ${error}` };
+    }
   }
 
   async stopRecording(): Promise<OperationResult> {
@@ -161,6 +197,26 @@ export abstract class BaseAdapter implements CaptionAdapter {
     });
 
     return { success: true, message: "Recording stopped successfully" };
+  }
+
+  async hardStopRecording(): Promise<OperationResult> {
+    if (!this.isRecording) {
+      return { success: true, message: "Recording not started" };
+    }
+
+    this.isRecording = false;
+    this.isPaused = false;
+    this.meetingInfo.endTime = new Date().toISOString();
+
+    this.cleanupPlatformObservers();
+
+    this.emit("recording_hard_stopped", {
+      timestamp: this.meetingInfo.endTime,
+    });
+
+    this.clearDataInternal();
+
+    return { success: true, message: "Recording hard stopped successfully" };
   }
 
   async pauseRecording(): Promise<OperationResult> {
@@ -205,61 +261,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
     return { ...this.meetingInfo };
   }
 
-  async exportData(options: ExportOptions): Promise<OperationResult> {
-    try {
-      const data = {
-        meetingInfo: this.meetingInfo,
-        captions: this.captions,
-        chatMessages: options.includeChatMessages ? this.chatMessages : [],
-      };
-
-      let content: string;
-      let filename: string;
-      const title = this.meetingInfo.title || "meeting";
-
-      switch (options.format) {
-        case "json":
-          content = JSON.stringify(
-            {
-              ...data,
-              exportOptions: options,
-              exportedAt: new Date().toISOString(),
-            },
-            null,
-            2
-          );
-          filename = options.filename || `${title}_transcript.json`;
-          break;
-        case "txt":
-          content = formatAsText(data, options);
-          filename = options.filename || `${title}_transcript.txt`;
-          break;
-        case "srt":
-          content = formatAsSRT(data.captions, options);
-          filename = options.filename || `${title}_transcript.srt`;
-          break;
-        case "vtt":
-          content = formatAsVTT(data.captions, options);
-          filename = options.filename || `${title}_transcript.vtt`;
-          break;
-        case "csv":
-          content = formatAsCSV(data.captions, options);
-          filename = options.filename || `${title}_transcript.csv`;
-          break;
-        default:
-          return {
-            success: false,
-            error: `Unsupported format: ${options.format}`,
-          };
-      }
-
-      this.downloadFile(content, filename);
-      return { success: true, message: `Data exported as ${options.format}` };
-    } catch (error) {
-      return { success: false, error: `Failed to export data: ${error}` };
-    }
-  }
-
   async clearData(): Promise<OperationResult> {
     this.clearDataInternal();
     this.emit("data_cleared", { timestamp: new Date().toISOString() });
@@ -275,18 +276,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
       endTime: undefined,
       attendees: [],
     };
-  }
-
-  private downloadFile(content: string, filename: string): void {
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   }
 
   // Система подій

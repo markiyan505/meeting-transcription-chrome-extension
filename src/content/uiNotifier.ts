@@ -29,18 +29,7 @@ function initializeNotificationContainer() {
 
   notificationContainer = document.createElement("div");
   notificationContainer.id = "caption-notifications-container";
-  notificationContainer.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 10000;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-width: 350px;
-    pointer-events: none;
-    align-items: flex-end;
-  `;
+  notificationContainer.className = "notification-container";
 
   document.body.appendChild(notificationContainer);
 }
@@ -159,36 +148,9 @@ export function showCaptionNotification(
     .substring(2, 9)}`;
 
   const notification = document.createElement("div");
-  notification.className = `caption-notification caption-notification-${type}`;
+  notification.className = `notification notification-${type}`;
   notification.textContent = message;
   notification.dataset.notificationId = id;
-
-  // Стилі для повідомлень
-  notification.style.cssText = `
-    padding: 12px 16px;
-    border-radius: 8px;
-    color: white;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transition: all 0.3s ease;
-    opacity: 0;
-    pointer-events: auto;
-    cursor: pointer;
-    word-wrap: break-word;
-    margin-top: 0;
-  `;
-
-  // Кольори для різних типів повідомлень
-  const colors = {
-    success: "#10B981",
-    error: "#EF4444",
-    warning: "#F59E0B",
-    info: "#3B82F6",
-  };
-
-  notification.style.backgroundColor = colors[type] || colors.info;
 
   // Додаємо в контейнер
   notificationContainer!.appendChild(notification);
@@ -211,7 +173,7 @@ export function showCaptionNotification(
 
   // Анімація появи
   requestAnimationFrame(() => {
-    notification.style.opacity = "1";
+    notification.classList.add("notification-visible");
     updateNotificationPositions();
   });
 
@@ -232,9 +194,8 @@ function removeNotification(id: string) {
   clearTimeout(notification.timeoutId);
 
   // Анімація зникнення
-  notification.element.style.opacity = "0";
-  notification.element.style.transform = "translateX(100%)";
-  notification.element.style.marginTop = "0"; // Скидаємо margin при зникненні
+  notification.element.classList.remove("notification-visible");
+  notification.element.classList.add("notification-hidden");
 
   setTimeout(() => {
     if (notification.element.parentNode) {
@@ -272,7 +233,6 @@ export function clearDuplicateNotifications() {
   toRemove.forEach((id) => removeNotification(id));
   console.log(`[NOTIFICATION] Removed ${toRemove.length} duplicates`);
 }
-
 
 /**
  * Показує повідомлення про помилку
@@ -323,55 +283,15 @@ export function showActionNotification(
     .substring(2, 9)}`;
 
   const notification = document.createElement("div");
-  notification.className = `caption-notification caption-notification-${type} caption-notification-action`;
+  notification.className = `notification notification-${type} notification-action`;
   notification.dataset.notificationId = id;
 
   notification.innerHTML = `
-    <div style="flex: 1; margin-right: 12px;">${message}</div>
-    <button style="
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: white;
-      padding: 4px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 500;
-      transition: background 0.2s ease;
-    " onmouseover="this.style.background='rgba(255, 255, 255, 0.3)'" 
-       onmouseout="this.style.background='rgba(255, 255, 255, 0.2)'">
+    <div class="notification-content">${message}</div>
+    <button class="notification-button">
       ${actionText}
     </button>
   `;
-
-  // Стилі для повідомлень з діями
-  notification.style.cssText = `
-    padding: 12px 16px;
-    border-radius: 8px;
-    color: white;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transition: all 0.3s ease;
-    opacity: 0;
-    pointer-events: auto;
-    cursor: default;
-    word-wrap: break-word;
-    display: flex;
-    align-items: center;
-    margin-top: 0;
-  `;
-
-  // Кольори для різних типів повідомлень
-  const colors = {
-    success: "#10B981",
-    error: "#EF4444",
-    warning: "#F59E0B",
-    info: "#3B82F6",
-  };
-
-  notification.style.backgroundColor = colors[type] || colors.info;
 
   // Додаємо в контейнер
   notificationContainer!.appendChild(notification);
@@ -394,7 +314,7 @@ export function showActionNotification(
 
   // Анімація появи
   requestAnimationFrame(() => {
-    notification.style.opacity = "1";
+    notification.classList.add("notification-visible");
     updateNotificationPositions();
   });
 

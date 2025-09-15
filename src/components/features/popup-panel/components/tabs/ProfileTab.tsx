@@ -20,6 +20,7 @@ import {
   statisticsCardsConfig,
   platformCardsConfig,
 } from "../../data/mockData";
+import { useAuthStore } from "@/store/AuthStore";
 // import SettingItem from "./SettingItem";
 
 interface ProfileTabProps {
@@ -27,7 +28,6 @@ interface ProfileTabProps {
   settings: MockProfileSettings;
   stats: MockStats;
   onSettingChange: (key: string, value: any) => void;
-  onExportData: () => void;
   onRefreshToken?: () => void;
 }
 
@@ -36,9 +36,10 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
   settings,
   stats,
   onSettingChange,
-  onExportData,
   onRefreshToken,
 }) => {
+  const { session, refreshToken, tokenExpiry, isAuthenticated } = useAuthStore();
+  
   // Use configurations from mockData
   const statisticsCards = statisticsCardsConfig.map((card) => ({
     ...card,
@@ -86,14 +87,18 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
           </div>
           <div className="flex flex-col">
             <Typography variant="title" className="font-semibold">
-              {user.name}
+              {session?.user?.user_metadata?.full_name || user.name}
             </Typography>
             <Typography variant="caption" color="muted">
-              {user.email}
+              {session?.user?.email || user.email}
             </Typography>
           </div>
         </div>
-        <TokenStatus onRefreshToken={onRefreshToken} />
+        <TokenStatus 
+          tokenExpiresAt={tokenExpiry}
+          onRefreshToken={refreshToken}
+          isAuthenticated={isAuthenticated}
+        />
       </div>
 
       <div>

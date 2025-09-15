@@ -65,13 +65,12 @@ export function handleResizeMessage(data: any): void {
 }
 
 export function handleOrientationChangeMessage(data: any): void {
+  console.log("messaging handleOrientationChangeMessage", data);
   const container = document.getElementById(CONTROL_PANEL.PANEL_IDS.CONTAINER);
   const dragHandle = document.getElementById(
     CONTROL_PANEL.PANEL_IDS.DRAG_HANDLE
   );
-
   if (!container) {
-    console.log("Float panel container not found");
     return;
   }
 
@@ -81,10 +80,13 @@ export function handleOrientationChangeMessage(data: any): void {
 
   container.style.width = currentHeight + "px";
   container.style.height = currentWidth + "px";
-
   if (dragHandle) {
-    const dragWidth = dragHandle.style.width;
-    const dragHeight = dragHandle.style.height;
+    // Get computed styles since dragHandle uses CSS classes
+    const computedStyle = window.getComputedStyle(dragHandle);
+    const dragWidth = computedStyle.width;
+    const dragHeight = computedStyle.height;
+
+    // Swap the dimensions
     dragHandle.style.width = dragHeight;
     dragHandle.style.height = dragWidth;
   }
@@ -123,46 +125,6 @@ export function handleMoveMessage(data: any): void {
   }
 }
 
-// Runtime message handler
-export function setupRuntimeMessageHandler(): void {
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!isExtensionContextValid()) {
-      console.log("Extension context invalid, ignoring message");
-      return;
-    }
-
-    // console.log("Content script received message:", message);
-
-    const handlers = {
-      GET_PAGE_INFO: () => ({
-        url: window.location.href,
-        title: document.title,
-        domain: window.location.hostname,
-      }),
-      TOGGLE_FLOAT_PANEL: () => ({ success: true }),
-      RESIZE_FLOAT_PANEL: () => {
-        const panel = document.getElementById(
-          CONTROL_PANEL.PANEL_IDS.IFRAME
-        ) as HTMLIFrameElement;
-        if (panel) {
-          panel.style.height = message.height + "px";
-          // console.log("Float panel resized to:", message.height + "px");
-        }
-        return { success: true };
-      },
-    };
-
-    const handler = handlers[message.type as keyof typeof handlers];
-    if (handler) {
-      sendResponse(handler());
-    } else {
-      sendResponse({ error: "Unknown message type" });
-    }
-
-    return true;
-  });
-}
-
 // Window message handler
 export function setupWindowMessageHandler(): void {
   window.addEventListener("message", (event) => {
@@ -170,12 +132,12 @@ export function setupWindowMessageHandler(): void {
       return;
     }
 
-    // console.log(
-    //   "[CONTENT SCRIPT] Received postMessage:",
-    //   event.data,
-    //   "from:",
-    //   event.source
-    // );
+    console.log(
+      "[CONTENT SCRIPT] Received postMessage:",
+      event.data,
+      "from:",
+      event.source
+    );
 
     const messageHandlers = {
       RESIZE_FLOAT_PANEL: handleResizeMessage,
@@ -185,6 +147,7 @@ export function setupWindowMessageHandler(): void {
 
     const handler =
       messageHandlers[event.data?.type as keyof typeof messageHandlers];
+
     if (handler) {
       handler(event.data);
     }

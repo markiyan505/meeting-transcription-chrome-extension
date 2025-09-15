@@ -7,8 +7,8 @@
     "dev": "vite build --watch",
     "dev:server": "vite --config vite.config.ts",
     "dev:floatpanel": "vite --config vite.config.ts --open /src/dev/index.html",
-    "build": "tsc && vite build",
-    "build:prod": "tsc && vite build --mode production",
+    "build": "tsc && vite build && vite build --config vite.content.config.ts",
+    "build:prod": "tsc && vite build --mode production && vite build --config vite.content.config.ts --mode production",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist"
@@ -16,13 +16,14 @@
   "dependencies": {
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
+    "@supabase/supabase-js": "^2.57.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^3.3.1",
-    "zustand": "^4.4.7"
+    "zustand": "^4.5.7"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.251",

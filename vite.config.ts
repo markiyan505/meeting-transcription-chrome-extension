@@ -19,6 +19,14 @@ export default defineConfig({
           src: "icons",
           dest: ".",
         },
+        {
+          src: "src/content/panels/panel.css",
+          dest: ".",
+        },
+        {
+          src: "src/content/notifications/notification.css",
+          dest: ".",
+        },
       ],
     }),
   ],
@@ -33,11 +41,14 @@ export default defineConfig({
       input: {
         popup: "./src/entries/popup/index.html",
         "content.css": "./src/content/content.css",
-        content: "./src/content/content.ts",
+        "panel.css": "./src/content/panels/panel.css",
+        "notification.css": "./src/content/notifications/notification.css",
         background: "./src/background/background.ts",
+        "auth-bridge": "./src/content/auth-bridge.ts",
         floatpanel: "./src/entries/floatpanel/index.html",
         "subtitles-panel": "./src/entries/subtitles-panel/index.html",
         dev: "./src/entries/dev/index.html",
+        manifest: "./manifest.json",
       },
       output: {
         entryFileNames: "[name].js",
@@ -47,7 +58,7 @@ export default defineConfig({
         },
         assetFileNames: "[name].[ext]",
         manualChunks: undefined, // Disable automatic chunking
-        format: "es", // Use ES modules format for other scripts
+        format: "es", // Use ES modules format
       },
     },
   },

@@ -10,7 +10,7 @@ export interface PanelConfig {
     HEIGHT: number;
   };
   IFRAME_SRC: string;
-  DEFAULT_STYLES: {
+  CSS_CLASSES: {
     container: string;
     iframe: string;
     dragHandle: string;
@@ -29,45 +29,10 @@ export const CONTROL_PANEL: PanelConfig = {
     HEIGHT: 18,
   },
   IFRAME_SRC: "src/entries/floatpanel/index.html",
-  DEFAULT_STYLES: {
-    container: `
-      position: fixed;
-      top: 0px;
-      left: 0px;
-      width: auto;
-      height: auto;
-      min-width: 50px;
-      min-height: 50px;
-      z-index: 999999;
-      background-color: transparent;
-      border: none;
-      border-radius: 4px;
-      overflow: visible;
-    `,
-    iframe: `
-      width: 100%;
-      height: 100%;
-      border: none;
-      border-radius: 4px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      background: white;
-      pointer-events: auto;
-      display: block;
-    `,
-    dragHandle: `
-      position: absolute;
-      top: 0px;
-      left: 0px;
-      height: 28px;
-      width: 50px;
-      border: none;
-      border-top-left-radius: 4px;
-      border-top-right-radius: 4px;
-      z-index: 1000000;
-      cursor: move;
-      background: rgba(0, 0, 0, 0.01);
-      transition: background-color 0.2s ease;
-    `,
+  CSS_CLASSES: {
+    container: "control-panel-container",
+    iframe: "control-panel-iframe",
+    dragHandle: "control-panel-drag-handle",
   },
   RESIZABLE: false,
 } as const;
@@ -83,43 +48,10 @@ export const SUBTITLES_PANEL: PanelConfig = {
     HEIGHT: 100,
   },
   IFRAME_SRC: "src/entries/subtitles-panel/index.html",
-  DEFAULT_STYLES: {
-    container: `
-      position: fixed;
-      top: 200px;
-      left: 300px;
-      width: 300px;
-      height: 156px;
-      z-index: 999999;
-      background-color: #000;
-      border: none;
-      border-radius: 8px;
-    `,
-    iframe: `
-      width: calc(100% - 8px);
-      height: calc(100% - 8px);
-      border: none;
-      border-radius: 5px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      background: white;
-      transition: height 0.3s ease-in-out;
-      pointer-events: auto;
-      margin: 4px;
-    `,
-    dragHandle: `
-      position: absolute;
-      top: 4px;
-      left: 4px;
-      height: 28px;
-      width: 50px;
-      border: none;
-      border-top-left-radius: 4px;
-      border-top-right-radius: 4px;
-      z-index: 1000000;
-      cursor: move;
-      background: rgba(0, 0, 0, 0.01);
-      transition: background-color 0.2s ease;
-    `,
+  CSS_CLASSES: {
+    container: "subtitles-panel-container",
+    iframe: "subtitles-panel-iframe",
+    dragHandle: "subtitles-panel-drag-handle",
   },
   RESIZABLE: true,
 } as const;

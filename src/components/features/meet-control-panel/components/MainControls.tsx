@@ -19,9 +19,7 @@ interface MainControlsProps {
   orientation: orientationType;
   tooltipPosition: TooltipPosition;
   onStateChange: (state: stateType) => void;
-  onErrorDismiss: () => void;
   onDeleteRecording: () => void;
-  onSubtitlesToggle: () => void;
 }
 
 export const MainControls: React.FC<MainControlsProps> = ({
@@ -30,7 +28,6 @@ export const MainControls: React.FC<MainControlsProps> = ({
   orientation,
   tooltipPosition,
   onStateChange,
-  onErrorDismiss,
   onDeleteRecording,
 }) => {
   const orientationClasses = getOrientationClasses(orientation);
@@ -41,21 +38,21 @@ export const MainControls: React.FC<MainControlsProps> = ({
         return (
           <NotAuthorizedErrorButton
             tooltipPosition={tooltipPosition}
-            onClick={onErrorDismiss}
+            onClick={() => {}}
           />
         );
       case "subtitles_disabled":
         return (
           <SubtitlesDisabledErrorButton
             tooltipPosition={tooltipPosition}
-            onClick={onErrorDismiss}
+            onClick={() => {}}
           />
         );
       case "incorrect_language":
         return (
           <IncorrectLanguageErrorButton
             tooltipPosition={tooltipPosition}
-            onClick={onErrorDismiss}
+            onClick={() => {}}
           />
         );
       default:

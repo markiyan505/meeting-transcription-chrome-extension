@@ -39,7 +39,7 @@ export class TranscriptonicAdapter extends BaseAdapter {
       if (!window.location.hostname.includes("meet.google.com")) {
         return { success: false, error: "Not on a Google Meet page" };
       }
-      this.setupMeetingStateObserver(); 
+      this.setupMeetingStateObserver();
       // this.setupMeetingDetection();
       this.initializeUserName();
       await this.updateMeetingInfo();
@@ -58,7 +58,7 @@ export class TranscriptonicAdapter extends BaseAdapter {
 
   private async initializeUserName(): Promise<void> {
     try {
-        const userNameElement = document.querySelector(
+      const userNameElement = document.querySelector(
         this.config.baseSelectors.userName
       );
       if (userNameElement?.textContent) {
@@ -71,6 +71,10 @@ export class TranscriptonicAdapter extends BaseAdapter {
   }
 
   async isCaptionsEnabled(): Promise<boolean> {
+    // if (!(await this.isCaptionsButtonAvailable())) {
+    //   console.log("Captions button not available");
+    //   return false;
+    // }
     return document.querySelector(this.selectors.captionsContainer) !== null;
   }
 
@@ -106,6 +110,22 @@ export class TranscriptonicAdapter extends BaseAdapter {
     return this.enableCaptions();
   }
 
+  async isCaptionsButtonAvailable(): Promise<boolean> {
+    try {
+      const button = this.selectElementByText(
+        this.selectors.captionsButton,
+        this.selectors.captionsButtonText
+      );
+      return !!button;
+    } catch (error) {
+      console.error(
+        "Error while checking if captions button is available:",
+        error
+      );
+      return false;
+    }
+  }
+
   async cleanup(): Promise<OperationResult> {
     this.cleanupPlatformObservers();
     this.eventListeners.clear();
@@ -113,28 +133,27 @@ export class TranscriptonicAdapter extends BaseAdapter {
     return { success: true, message: "Cleanup completed successfully" };
   }
 
-
   async startRecording(): Promise<OperationResult> {
     if (this.isRecording) {
       return { success: true, message: "Recording already started" };
     }
-    if (!(await this.isCaptionsEnabled())) {
-      const enableResult = await this.enableCaptions();
-      if (!enableResult.success) {
-        return enableResult;
-      }
-    }
+    // if (!(await this.isCaptionsEnabled())) {
+    //   const enableResult = await this.enableCaptions();
+    //   if (!enableResult.success) {
+    //     return enableResult;
+    //   }
+    // }
     return super.startRecording();
   }
 
   async stopRecording(): Promise<OperationResult> {
-    this.pushBufferToCaptions(); 
+    this.pushBufferToCaptions();
     this.clearBuffers();
     return super.stopRecording();
   }
 
   async pauseRecording(): Promise<OperationResult> {
-    this.pushBufferToCaptions(); 
+    this.pushBufferToCaptions();
     this.clearBuffers();
     return super.pauseRecording();
   }

@@ -20,20 +20,23 @@ export function createFloatPanel(config: PanelConfig): void {
   try {
     const container = createBaseContainer(
       config.PANEL_IDS.CONTAINER,
-      config.DEFAULT_STYLES.container
+      config.CSS_CLASSES.container
     );
     const iframe = createIframe(
       config.PANEL_IDS.IFRAME,
       config.IFRAME_SRC,
-      config.DEFAULT_STYLES.iframe
+      config.CSS_CLASSES.iframe
     );
     const dragHandle = createDragHandle(
       config.PANEL_IDS.DRAG_HANDLE,
-      config.DEFAULT_STYLES.dragHandle
+      config.CSS_CLASSES.dragHandle
     );
 
     container.appendChild(iframe);
     container.appendChild(dragHandle);
+
+    container.style.display = "none";
+
     document.body.appendChild(container);
 
     setupDragLogic(container, dragHandle, iframe);
@@ -43,6 +46,9 @@ export function createFloatPanel(config: PanelConfig): void {
     }
 
     console.log(`${config.PANEL_IDS.CONTAINER} injected successfully`);
+    console.log(
+      `🔍 [PANEL] Panel created with ID: ${config.PANEL_IDS.CONTAINER}`
+    );
   } catch (error) {
     console.error(`Failed to inject ${config.PANEL_IDS.CONTAINER}:`, error);
   }

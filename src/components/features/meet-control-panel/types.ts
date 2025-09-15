@@ -4,22 +4,13 @@ export type errorType =
   | undefined
   | "not_authorized"
   | "subtitles_disabled"
-  | "incorrect_language";
+  | "incorrect_language"
+  | "unknown_error";
 
-export interface PanelState {
-  state: stateType;
-  error: errorType;
+
+export interface LocalPanelState {
   panelOrientation: orientationType;
   isCollapsed: boolean;
-  isSubtitlesEnabled: boolean;
-}
-
-export interface PanelActions {
-  setState: (state: stateType) => void;
-  setError: (error: errorType) => void;
-  setPanelOrientation: (orientation: orientationType) => void;
-  setIsCollapsed: (collapsed: boolean) => void;
-  setIsSubtitlesEnabled: (enabled: boolean) => void;
 }
 
 export interface StatusConfig {

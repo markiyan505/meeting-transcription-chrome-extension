@@ -265,21 +265,7 @@ const DevContainer: React.FC<DevContainerProps> = ({ children }) => {
   ]);
 
   // Listen for messages from iframe (simulate content script behavior)
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === "RESIZE_FLOAT_PANEL") {
-        const newHeight = event.data.height + 16;
-        handleResize(size.width, newHeight);
-      }
 
-      if (event.data && event.data.type === "MOVE_FLOAT_PANEL") {
-        handleMove(event.data.x, event.data.y);
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [handleMove, handleResize, size.width]);
 
   // Expose methods to global scope for dev controls
   useEffect(() => {

@@ -10,75 +10,75 @@ import { DragHandle } from "./components/DragHandle";
 import { MainControls } from "./components/MainControls";
 import { BottomControls } from "./components/BottomControls";
 
+import { useCaptionStore } from "@/store/captionStore";
+import { useSyncCaptionStore } from "@/store/useSyncCaptionStore";
+import { stateType } from "./types";
+
 const MeetControlPanel: React.FC = () => {
-  const panelState = usePanelState();
+  useSyncCaptionStore();
+  const { isRecording, isPaused, isError } = useCaptionStore();
+  const { panelOrientation, isCollapsed, setPanelOrientation, setIsCollapsed } =
+    usePanelState();
+
+  const state: stateType = isRecording
+    ? isPaused
+      ? "paused"
+      : "recording"
+    : "idle";
+
   const panelRef = useRef<HTMLDivElement>(null);
 
   const tooltipPosition = useTooltipPosition({
-    panelOrientation: panelState.panelOrientation,
+    panelOrientation,
     panelRef,
   });
 
-  // Use resize hook to track and send size changes
   const { sendResizeMessage, sendOrientationMessage } = usePanelResize({
     panelRef,
-    orientation: panelState.panelOrientation,
-    isCollapsed: panelState.isCollapsed,
-    state: panelState.state,
-    error: panelState.error,
+    orientation: panelOrientation,
+    isCollapsed: isCollapsed,
+    state: state,
+    error: isError,
   });
 
   const actions = usePanelActions({
-    setState: panelState.setState,
-    setError: panelState.setError,
-    setPanelOrientation: panelState.setPanelOrientation,
-    setIsCollapsed: panelState.setIsCollapsed,
-    setIsSubtitlesEnabled: panelState.setIsSubtitlesEnabled,
-    isSubtitlesEnabled: panelState.isSubtitlesEnabled,
-    panelOrientation: panelState.panelOrientation,
-    isCollapsed: panelState.isCollapsed,
+    setPanelOrientation,
+    setIsCollapsed,
+    panelOrientation,
+    isCollapsed,
     sendResizeMessage,
     sendOrientationMessage,
   });
 
   return (
-    <MeetPanel ref={panelRef} orientation={panelState.panelOrientation}>
-      {/* Drag Handle */}
-      <DragHandle orientation={panelState.panelOrientation} />
+    <MeetPanel ref={panelRef} orientation={panelOrientation}>
+      <DragHandle orientation={panelOrientation} />
 
-      {!panelState.isCollapsed && (
-        <Separator
-          orientation={getSeparatorOrientation(panelState.panelOrientation)}
-        />
+      {!isCollapsed && (
+        <Separator orientation={getSeparatorOrientation(panelOrientation)} />
       )}
 
-      {/* Main Controls */}
-      {!panelState.isCollapsed && (
+      {!isCollapsed && (
         <div className="flex-1 flex items-center justify-center p-1">
           <MainControls
-            state={panelState.state}
-            error={panelState.error}
-            orientation={panelState.panelOrientation}
+            state={state}
+            error={isError}
+            orientation={panelOrientation}
             tooltipPosition={tooltipPosition}
             onStateChange={actions.handleStateChange}
-            onErrorDismiss={actions.handleErrorDismiss}
             onDeleteRecording={actions.handleDeleteRecording}
-            onSubtitlesToggle={actions.handleToggleSubtitles}
           />
         </div>
       )}
 
-      <Separator
-        orientation={getSeparatorOrientation(panelState.panelOrientation)}
-      />
+      <Separator orientation={getSeparatorOrientation(panelOrientation)} />
 
-      {/* Bottom Controls */}
       <BottomControls
-        orientation={panelState.panelOrientation}
-        isCollapsed={panelState.isCollapsed}
+        orientation={panelOrientation}
+        isCollapsed={isCollapsed}
         tooltipPosition={tooltipPosition}
-        state={panelState.state}
-        error={panelState.error}
+        state={state}
+        error={isError}
         onOrientationToggle={actions.handleOrientationToggle}
         onMinimizeToggle={actions.handleMinimizeToggle}
       />

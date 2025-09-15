@@ -3,32 +3,56 @@
   "name": "Meeting Transcription",
   "version": "1.0.0",
   "description": "Extension to save transcripts of meetings",
-  "permissions": ["activeTab", "storage", "scripting", "downloads"],
+  "permissions": ["activeTab", "storage", "downloads", "scripting", "alarms"],
+  "host_permissions": [
+    "*://meet.google.com/*",
+    "*://teams.microsoft.com/*",
+    "*://teams.live.com/*",
+    "http://localhost:3000/*"
+  ],
   "action": {
     "default_popup": "src/entries/popup/index.html",
     "default_title": "Meeting Transcription"
   },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "*://meet.google.com/*",
+        "*://teams.microsoft.com/*",
+        "*://teams.live.com/*",
+        "http://localhost:3000/*"
+      ],
       "js": ["content.js"],
-      "css": ["content.css"]
+      "css": ["content.css"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["http://localhost:3000/*"],
+      "js": ["auth-bridge.js"],
+      "run_at": "document_start"
     }
   ],
-  "background": {
-    "service_worker": "background.js"
-  },
   "web_accessible_resources": [
     {
       "resources": [
         "src/entries/floatpanel/index.html",
         "src/entries/subtitles-panel/index.html",
-        "src/index.css",
+        "index.css",
+        "panel.css",
+        "notification.css",
         "floatpanel.js",
-        "subtitles-panel.js",
-        "index.css"
+        "subtitles-panel.js"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "*://meet.google.com/*",
+        "*://teams.microsoft.com/*",
+        "*://teams.live.com/*",
+        "http://localhost:3000/*"
+      ]
     }
   ],
   "icons": {

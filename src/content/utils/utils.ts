@@ -10,30 +10,33 @@ export function isExtensionContextValid(): boolean {
 
 export function createBaseContainer(
   id: string,
-  styles: string
+  className: string
 ): HTMLDivElement {
   const container = document.createElement("div");
   container.id = id;
-  container.style.cssText = styles;
+  container.className = className;
   return container;
 }
 
 export function createIframe(
   id: string,
   src: string,
-  styles: string
+  className: string
 ): HTMLIFrameElement {
   const iframe = document.createElement("iframe");
   iframe.id = id;
   iframe.src = chrome.runtime.getURL(src);
-  iframe.style.cssText = styles;
+  iframe.className = className;
   return iframe;
 }
 
-export function createDragHandle(id: string, styles: string): HTMLDivElement {
+export function createDragHandle(
+  id: string,
+  className: string
+): HTMLDivElement {
   const dragHandle = document.createElement("div");
   dragHandle.id = id;
-  dragHandle.style.cssText = styles;
+  dragHandle.className = className;
   return dragHandle;
 }
 

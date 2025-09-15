@@ -1,76 +1,132 @@
 /**
- * Модуль інтеграції субтитрів для content script
- * Винесено з content.ts для покращення структури коду
+ * Модуль інтеграції субтитрів для content script.
+ * Виконує команди від background та звітує про зміни стану.
  */
 
 import {
-  createCaptionManagerForCurrentPlatform,
+  createCaptionAdapterForCurrentPlatform,
   isCurrentPlatformSupported,
   getCurrentPlatformInfo,
   logCaptionEvent,
   handleCaptionError,
 } from "./caption/index";
-import { CaptionManager } from "./caption/CaptionManager";
+import { CaptionAdapter } from "./caption/types";
 import { showCaptionNotification } from "./uiNotifier";
+import { MessageType } from "@/types/messages";
+import type { CaptionState } from "@/store/captionStore";
+import { debounce } from "./caption/utils";
+import { errorType } from "@/components/features/meet-control-panel/types";
 
 // Глобальні змінні
-// let captionManager: CaptionManager | null = null;
-let captionManager: any = null;
+// let captionAdapter: CaptionAdapter | null = null;
+let captionAdapter: any;
 let isCaptionModuleInitialized = false;
-let backupInterval: NodeJS.Timeout | null = null;
-const BACKUP_INTERVAL_MS = 30000; // 30 секунд
+let isPanelVisible = true;
+let backupInterval: ReturnType<typeof setInterval> | null = null;
+const BACKUP_INTERVAL_MS = 30000;
+
+// =======================================================
+// ГОЛОВНА ЛОГІКА МОДУЛЯ
+// =======================================================
 
 /**
- * Ініціалізує модуль субтитрів
+ * Синхронізує isPanelVisible з captionStore
+ */
+async function syncPanelVisibilityFromStore() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: MessageType.GET_CAPTION_STATUS,
+    });
+    if (response && typeof response.isPanelVisible === "boolean") {
+      isPanelVisible = response.isPanelVisible;
+      console.log(
+        `🔄 [SYNC] isPanelVisible synced from store: ${isPanelVisible}`
+      );
+    }
+  } catch (error) {
+    console.warn("Failed to sync isPanelVisible from store:", error);
+  }
+}
+
+/**
+ * Обчислює чи повинна панель бути видимою
+ * Панель видима тільки якщо: isPanelVisible = true AND isInMeeting = true
+ */
+async function shouldPanelBeVisible(): Promise<boolean> {
+  if (!captionAdapter) return false;
+
+  try {
+    const isInMeeting = await captionAdapter.isInMeeting();
+    return isPanelVisible && isInMeeting;
+  } catch (error) {
+    console.warn("Failed to check meeting state:", error);
+    return false;
+  }
+}
+
+/**
+ * Ініціалізує модуль субтитрів на сторінці.
  */
 export async function initializeCaptionModule() {
   try {
+    // if (document.getElementById("caption-module-initialized")) {
+    //   console.warn("Caption module already initialized. Skipping.");
+    //   return;
+    // }
+
+    // Перевіряємо чи розширення ввімкнено
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: MessageType.GET_CAPTION_STATUS,
+      });
+      if (response && response.isExtensionEnabled === false) {
+        console.log("🔌 [INIT] Extension is disabled, skipping initialization");
+        return;
+      }
+    } catch (error) {
+      console.warn("Failed to check extension state:", error);
+    }
+    const initMarker = document.createElement("div");
+    initMarker.id = "caption-module-initialized";
+    document.body.appendChild(initMarker);
+
     logCaptionEvent("initialization_started", { url: window.location.href });
 
-    let isErrorNotificationShown = false;
-
-    function handleErrorOnce(details: any) {
-      if (!isErrorNotificationShown) {
-        console.error(
-          `A critical error occurred in ${details.context}:`,
-          details.error
-        );
-        isErrorNotificationShown = true;
-      }
-    }
-
-    // Перевіряємо, чи підтримується поточна платформа
     if (!isCurrentPlatformSupported()) {
-      const platformInfo = getCurrentPlatformInfo();
-      console.warn(
-        `Platform not supported: ${platformInfo.name} - ${platformInfo.description}`
-      );
+      console.warn("Platform not supported.");
+      await reportStateToBackground();
       return;
     }
 
-    // Створюємо менеджер субтитрів
-    captionManager = await createCaptionManagerForCurrentPlatform({
+    // Створюємо та ініціалізуємо адаптер
+    captionAdapter = await createCaptionAdapterForCurrentPlatform({
       autoEnableCaptions: true,
       autoSaveOnEnd: true,
       trackAttendees: true,
       operationMode: "automatic",
     });
 
-    captionManager.on("error", handleErrorOnce);
-
-    // Перевіряємо та відновлюємо бекап при вході в зустріч
-    await checkAndRecoverBackup();
-
-    // Налаштовуємо обробники подій
     setupCaptionEventHandlers();
 
     isCaptionModuleInitialized = true;
     logCaptionEvent("initialization_completed", {
       platform: getCurrentPlatformInfo().name,
-      adapter: captionManager.currentAdapter?.constructor.name,
     });
 
-    // Показуємо повідомлення користувачу
+    const isInMeeting = await captionAdapter.isInMeeting();
+    console.log(`🔍 [INIT] isInMeeting: ${isInMeeting}`);
+
+    // Синхронізуємо isPanelVisible з store
+    await syncPanelVisibilityFromStore();
+
+    // Даємо час панелі створитися перед оновленням видимості
+    setTimeout(async () => {
+      await updatePanelVisibility();
+    }, 200);
+
+    // Відправляємо перший звіт про стан у background
+    await reportStateToBackground();
+
     showCaptionNotification(
       "Caption module initialized successfully",
       "success"
@@ -81,228 +137,575 @@ export async function initializeCaptionModule() {
       "initializeCaptionModule"
     );
     showCaptionNotification("Failed to initialize caption module", "error");
+    // Повідомляємо background про помилку ініціалізації
+    await reportStateToBackground(error);
   }
 }
 
 /**
- * Налаштовує обробники подій для модуля субтитрів
+ * Обробляє команди, що надходять від background script.
+ */
+export async function handleCaptionMessages(
+  message: any,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response: any) => void
+) {
+  console.log("📨 [MESSAGE] Received message:", message);
+  console.log(
+    "📨 [MESSAGE] Sender ID:",
+    sender.id,
+    "Expected:",
+    chrome.runtime.id
+  );
+  if (sender.id !== chrome.runtime.id) {
+    sendResponse({ success: false, message: "Sender ID mismatch" });
+    return;
+  }
+
+  console.log("📨 [MESSAGE] Sender ID verified, processing message...");
+
+  try {
+    // Дозволяємо обробку TOGGLE_EXTENSION_STATE навіть коли модуль не ініціалізований
+    if (
+      message.type !== MessageType.TOGGLE_EXTENSION_STATE &&
+      message.type !== "GET_PLATFORM_INFO" &&
+      (!isCaptionModuleInitialized || !captionAdapter)
+    ) {
+      sendResponse({
+        success: false,
+        error: "Caption module is not ready on this page.",
+      });
+      return;
+    }
+
+    let result: any = { success: true };
+    try {
+      if (
+        message.type !== MessageType.TOGGLE_EXTENSION_STATE &&
+        message.type !== "GET_PLATFORM_INFO"
+      ) {
+        if (!captionAdapter) {
+          sendResponse({
+            success: false,
+            error: "Caption adapter not available",
+          });
+          return;
+        }
+      }
+
+      console.log("🔄 [MESSAGE] Processing message type:", message.type);
+      switch (message.type) {
+        case MessageType.START_CAPTION_RECORDING:
+          result = await captionAdapter.startRecording();
+          break;
+        case MessageType.STOP_CAPTION_RECORDING:
+          result = await captionAdapter.stopRecording();
+          break;
+        case MessageType.PAUSE_CAPTION_RECORDING:
+          result = await captionAdapter.pauseRecording();
+          break;
+        case MessageType.RESUME_CAPTION_RECORDING:
+          result = await captionAdapter.resumeRecording();
+          break;
+        case MessageType.HARD_STOP_CAPTION_RECORDING:
+          result = await captionAdapter.hardStopRecording();
+          break;
+        case MessageType.ENABLE_CAPTIONS:
+          result = await captionAdapter.enableCaptions();
+          break;
+        case MessageType.DISABLE_CAPTIONS:
+          result = await captionAdapter.disableCaptions();
+          break;
+        case MessageType.TOGGLE_EXTENSION_STATE:
+          const isEnabled = message.isEnabled;
+
+          if (!isEnabled) {
+            await disableCaptionModule();
+          } else {
+            await reinitializeCaptionModule();
+          }
+
+          result = {
+            success: true,
+            message: `Extension ${isEnabled ? "enabled" : "disabled"}`,
+            isEnabled: isEnabled,
+          };
+          console.log(
+            "🔄 [MESSAGE] TOGGLE_EXTENSION_STATE processed successfully"
+          );
+          break;
+
+        case MessageType.TOGGLE_PANEL_VISIBILITY:
+          console.log("🔄 [MESSAGE] Processing TOGGLE_PANEL_VISIBILITY");
+          // Перемикаємо стан isPanelVisible
+          isPanelVisible = !isPanelVisible;
+          console.log(
+            `🔄 [MESSAGE] isPanelVisible changed to: ${isPanelVisible}`
+          );
+          // Оновлюємо видимість панелі (автоматично враховує isInMeeting)
+          await updatePanelVisibility();
+          result = {
+            success: true,
+            message: `Panel ${isPanelVisible ? "enabled" : "disabled"}`,
+          };
+          console.log(
+            "🔄 [MESSAGE] TOGGLE_PANEL_VISIBILITY processed successfully"
+          );
+          break;
+
+        case "GET_PLATFORM_INFO":
+          console.log("🔄 [MESSAGE] Processing GET_PLATFORM_INFO");
+          try {
+            const platformInfo = getCurrentPlatformInfo();
+            const isSupported = isCurrentPlatformSupported();
+            console.log("🔄 [MESSAGE] Platform info:", {
+              platform: platformInfo.name,
+              isSupported: isSupported,
+              hostname: window.location.hostname,
+            });
+            result = {
+              success: true,
+              isSupportedPlatform: isSupported,
+              currentPlatform: platformInfo.name,
+            };
+            console.log("🔄 [MESSAGE] GET_PLATFORM_INFO result:", result);
+          } catch (error) {
+            console.error("🔄 [MESSAGE] Error getting platform info:", error);
+            result = {
+              success: true,
+              isSupportedPlatform: false,
+              currentPlatform: "unknown",
+              error: error instanceof Error ? error.message : String(error),
+            };
+            console.log("🔄 [MESSAGE] GET_PLATFORM_INFO error result:", result);
+          }
+          break;
+        default:
+          console.log("🔄 [MESSAGE] Unknown message type:", message.type);
+          result = {
+            success: false,
+            error: `Unknown message type: ${message.type}`,
+          };
+          break;
+      }
+      if (result.warning) {
+        showCaptionNotification(result.warning, "warning");
+      }
+
+      // Не викликаємо reportStateToBackground для GET_PLATFORM_INFO щоб уникнути циклу
+      if (message.type !== "GET_PLATFORM_INFO") {
+        await reportStateToBackground();
+      }
+
+      console.log(
+        "🔄 [MESSAGE] Sending response for",
+        message.type,
+        ":",
+        result
+      );
+      sendResponse(result);
+    } catch (error) {
+      sendResponse({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  } catch (error) {
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Налаштовує обробники подій від адаптера для звітування у background.
  */
 function setupCaptionEventHandlers() {
-  if (!captionManager) return;
+  if (!captionAdapter) return;
 
-  // Обробники подій запису
-  captionManager.on("recording_started", (data: any) => {
-    console.log("🔴 [RECORDING STARTED]", {
-      timestamp: data.timestamp,
-      platform: getCurrentPlatformInfo().name,
-      adapter: captionManager.currentAdapter?.constructor.name,
-    });
+  captionAdapter.on("meeting_started", async (data: any) => {
+    logCaptionEvent("meeting_started", data);
+    showCaptionNotification("Meeting started", "info");
+    reportStateToBackground();
+    await updatePanelVisibility();
+    await checkAndRecoverBackup();
+  });
 
+  captionAdapter.on("meeting_ended", async (data: any) => {
+    logCaptionEvent("meeting_ended", data);
+    showCaptionNotification("Meeting ended", "info");
+    reportStateToBackground();
+    await updatePanelVisibility(false);
+    stopPeriodicBackups();
+  });
+
+  captionAdapter.on("hydrated", (data: any) => {
+    logCaptionEvent("hydrated", data);
+    showCaptionNotification("State recovered from previous session", "success");
+  });
+
+  captionAdapter.on("data_cleared", (data: any) => {
+    logCaptionEvent("data_cleared", data);
+  });
+
+  captionAdapter.on("error", (data: any) => {
+    logCaptionEvent("error", data);
+  });
+
+  captionAdapter.on("recording_started", (data: any) => {
     logCaptionEvent("recording_started", data);
     showCaptionNotification("Recording started", "info");
-    updateBadgeStatus(true);
 
-    // Запускаємо періодичні бекапи
     startPeriodicBackups();
   });
 
-  // Обробник увімкнення субтитрів
-  captionManager.on("captions_enabled", (data: any) => {
-    console.log("📝 [CAPTIONS ENABLED]", {
-      timestamp: data.timestamp,
-      platform: getCurrentPlatformInfo().name,
-    });
-
+  captionAdapter.on("captions_enabled", (data: any) => {
     logCaptionEvent("captions_enabled", data);
     showCaptionNotification("Captions enabled", "success");
   });
 
-  // Обробник вимкнення субтитрів
-  captionManager.on("captions_disabled", (data: any) => {
-    console.log("📝 [CAPTIONS DISABLED]", {
-      timestamp: data.timestamp,
-      platform: getCurrentPlatformInfo().name,
-    });
-
+  captionAdapter.on("captions_disabled", (data: any) => {
     logCaptionEvent("captions_disabled", data);
     showCaptionNotification("Captions disabled", "warning");
   });
 
-  captionManager.on("recording_stopped", (data: any) => {
-    console.log("⏹️ [RECORDING STOPPED]", {
-      timestamp: data.timestamp,
-      captionCount: data.captionCount,
-      chatMessageCount: data.chatMessageCount,
-      totalDuration: data.totalDuration,
-    });
+  captionAdapter.on("recording_hard_stopped", (data: any) => {
+    logCaptionEvent("recording_hard_stopped", data);
+    showCaptionNotification("Recording deleted", "warning");
 
-    // Показуємо статистику запису
-    if (data.captionCount > 0) {
-      console.log(
-        `📊 [RECORDING STATS] Captured ${data.captionCount} captions`
-      );
-
-      // Показуємо останні 5 субтитрів
-      const captions = captionManager.getCaptions();
-      if (captions.length > 0) {
-        console.log("📝 [LAST CAPTIONS]:");
-        captions.slice(-5).forEach((caption: any, index: number) => {
-          console.log(
-            `  ${captions.length - 5 + index + 1}. ${caption.speaker}: "${
-              caption.text
-            }"`
-          );
-        });
-      }
-    }
-
-    logCaptionEvent("recording_stopped", data);
-    showCaptionNotification(
-      `Recording stopped. Captured ${data.captionCount} captions`,
-      "info"
-    );
-    updateBadgeStatus(false);
-
-    // Зупиняємо періодичні бекапи
     stopPeriodicBackups();
 
-    // Автоматичне збереження (перевірка даних буде в saveCaptionDataToBackground)
-    (async () => {
-      await saveCaptionDataToBackground(data);
-    })();
+    chrome.runtime.sendMessage({
+      type: "clear_caption_backup",
+    });
   });
 
-  captionManager.on("recording_paused", (data: any) => {
+  captionAdapter.on("recording_stopped", (data: any) => {
+    logCaptionEvent("recording_stopped", data);
+    showCaptionNotification("Recording stopped", "info");
+
+    stopPeriodicBackups();
+
+    console.log(`[RECORDING STOPPED] Captured ${data.captionCount} captions`);
+
+    saveCaptionDataToBackground(data);
+  });
+
+  captionAdapter.on("recording_paused", (data: any) => {
     console.log("⏸️ [RECORDING PAUSED]", {
       timestamp: data.timestamp,
-      currentCaptionCount: captionManager.getCaptions().length,
+      currentCaptionCount: captionAdapter?.getCaptions().length || 0,
     });
 
     logCaptionEvent("recording_paused", data);
     showCaptionNotification("Recording paused", "warning");
 
-    // Зупиняємо періодичні бекапи при паузі
     stopPeriodicBackups();
   });
 
-  captionManager.on("recording_resumed", (data: any) => {
-    console.log("▶️ [RECORDING RESUMED]", {
-      timestamp: data.timestamp,
-      currentCaptionCount: captionManager.getCaptions().length,
-    });
-
+  captionAdapter.on("recording_resumed", (data: any) => {
     logCaptionEvent("recording_resumed", data);
     showCaptionNotification("Recording resumed", "info");
 
-    // Відновлюємо періодичні бекапи при резюме
     startPeriodicBackups();
   });
 
-  // Обробники подій субтитрів
-  captionManager.on("captions_enabled", (data: any) => {
-    logCaptionEvent("captions_enabled", data);
-    showCaptionNotification("Captions enabled", "success");
+  captionAdapter.on("caption_added", (data: any) => {
+    logCaptionEvent("caption_added", data);
   });
 
-  captionManager.on("captions_disabled", (data: any) => {
-    logCaptionEvent("captions_disabled", data);
-    showCaptionNotification("Captions disabled", "warning");
+  captionAdapter.on("caption_updated", (data: any) => {
+    logCaptionEvent("caption_updated", data);
   });
 
-  captionManager.on("caption_added", (data: any) => {
-    // Розширене логування для нових субтитрів
-    console.log("📝 [NEW CAPTION]", {
-      speaker: data.speaker,
-      text: data.text,
-      timestamp: data.timestamp,
-      textLength: data.text.length,
-      id: data.id,
-    });
-
-    logCaptionEvent("caption_added", {
-      speaker: data.speaker,
-      textLength: data.text.length,
-      text: data.text.substring(0, 100) + (data.text.length > 100 ? "..." : ""), // Перші 100 символів
-    });
-
-    // Показуємо субтитр в консолі з форматуванням
-    console.log(`🎤 ${data.speaker}: "${data.text}"`);
-  });
-
-  captionManager.on("caption_updated", (data: any) => {
-    // Розширене логування для оновлених субтитрів
-    console.log("✏️ [UPDATED CAPTION]", {
-      speaker: data.speaker,
-      text: data.text,
-      timestamp: data.timestamp,
-      textLength: data.text.length,
-      id: data.id,
-    });
-
-    logCaptionEvent("caption_updated", {
-      speaker: data.speaker,
-      textLength: data.text.length,
-      text: data.text.substring(0, 100) + (data.text.length > 100 ? "..." : ""), // Перші 100 символів
-    });
-
-    // Показуємо оновлений субтитр в консолі
-    console.log(`🔄 ${data.speaker}: "${data.text}"`);
-  });
-
-  // Обробники подій експорту
-  captionManager.on("data_exported", (data: any) => {
-    logCaptionEvent("data_exported", data);
-    showCaptionNotification(`Data exported as ${data.format}`, "success");
-  });
-
-  captionManager.on("data_cleared", (data: any) => {
-    logCaptionEvent("data_cleared", data);
-    showCaptionNotification("Data cleared", "info");
+  captionAdapter.on("attendees_updated", (data: any) => {
+    logCaptionEvent("attendees_updated", data);
   });
 }
 
+// =======================================================
+// КОМУНІКАЦІЯ З BACKGROUND SCRIPT
+// =======================================================
+
 /**
- * Оновлює статус бейджа розширення
+ * Збирає поточний стан і відправляє його у background.
  */
-// let lastBadgeStatus: boolean | null = null;
+async function reportStateToBackground(errorSource?: unknown) {
+  let statePayload: Partial<CaptionState>;
+  const lastKnownState = await getSafeLastKnownState();
 
-function updateBadgeStatus(isRecording: boolean) {
-  // Уникаємо дублікатів повідомлень
-  // if (lastBadgeStatus === isRecording) {
-  //   return;
-  // }
+  // Отримуємо поточний стан розширення з background
+  let isExtensionEnabled = true;
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: MessageType.GET_CAPTION_STATUS,
+    });
+    if (response && typeof response.isExtensionEnabled === "boolean") {
+      isExtensionEnabled = response.isExtensionEnabled;
+    }
+  } catch (error) {
+    console.warn("Failed to get extension state:", error);
+  }
+  if (!captionAdapter || !isCaptionModuleInitialized) {
+    // Якщо модуль не готовий, відправляємо базовий стан
+    statePayload = {
+      isInitialized: false,
+      isSupportedPlatform: isCurrentPlatformSupported(),
+      isInMeeting: false,
+      isRecording: false,
+      isPaused: false,
+      isExtensionEnabled: isExtensionEnabled,
+      isPanelVisible: isPanelVisible,
+      currentPlatform: "unknown",
+      isError: errorSource ? classifyError(errorSource) : undefined,
+    };
+  } else {
+    try {
+      const recordingState = await captionAdapter.getRecordingState();
+      statePayload = {
+        isInitialized: true,
+        isSupportedPlatform: true,
+        isInMeeting: await captionAdapter.isInMeeting(),
+        isRecording: recordingState.isRecording,
+        isPaused: recordingState.isPaused,
+        isExtensionEnabled: isExtensionEnabled,
+        isPanelVisible: isPanelVisible,
+        currentPlatform: getCurrentPlatformInfo()
+          .name as CaptionState["currentPlatform"],
+        isError: errorSource ? classifyError(errorSource) : undefined,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message.toLowerCase()
+          : String(error).toLowerCase();
+      let classifiedError: errorType;
 
-  // lastBadgeStatus = isRecording;
+      if (errorMessage.includes("captions disabled")) {
+        classifiedError = "subtitles_disabled";
+      } else if (errorMessage.includes("user not authorized")) {
+        classifiedError = "not_authorized";
+      } else if (errorMessage.includes("incorrect language")) {
+        classifiedError = "incorrect_language";
+      } else {
+        classifiedError = "unknown_error";
+      }
+
+      statePayload = {
+        ...lastKnownState,
+        isError: classifiedError,
+      };
+    }
+  }
+
+  chrome.runtime.sendMessage({
+    type: MessageType.STATE_UPDATED,
+    data: statePayload,
+  });
+}
+
+function classifyError(error: unknown): errorType {
+  const errorMessage = (
+    error instanceof Error ? error.message : String(error)
+  ).toLowerCase();
+  let classifiedError: errorType;
+  if (errorMessage.includes("captions disabled")) {
+    classifiedError = "subtitles_disabled";
+  } else if (errorMessage.includes("user not authorized")) {
+    classifiedError = "not_authorized";
+  } else if (errorMessage.includes("incorrect language")) {
+    classifiedError = "incorrect_language";
+  } else {
+    classifiedError = "unknown_error";
+  }
+
+  return classifiedError;
+}
+
+// Допоміжна функція для безпечного отримання стану
+async function getSafeLastKnownState(): Promise<Partial<CaptionState>> {
+  if (!captionAdapter) return { isInitialized: false };
+
+  // Отримуємо поточний стан розширення з background
+  let isExtensionEnabled = true;
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: MessageType.GET_CAPTION_STATUS,
+    });
+    if (response && typeof response.isExtensionEnabled === "boolean") {
+      isExtensionEnabled = response.isExtensionEnabled;
+    }
+  } catch (error) {
+    console.warn(
+      "Failed to get extension state in getSafeLastKnownState:",
+      error
+    );
+  }
 
   try {
-    chrome.runtime.sendMessage({
-      type: "update_badge_status",
-      isRecording: isRecording,
+    const recordingState = await captionAdapter.getRecordingState();
+    return {
+      isInitialized: true,
+      isSupportedPlatform: true,
+      isInMeeting: await captionAdapter.isInMeeting(),
+      isRecording: recordingState.isRecording,
+      isPaused: recordingState.isPaused,
+      isExtensionEnabled: isExtensionEnabled,
+      isPanelVisible: isPanelVisible,
+      currentPlatform: getCurrentPlatformInfo()
+        .name as CaptionState["currentPlatform"],
+      isError: undefined,
+    };
+  } catch {
+    return { isInitialized: true, isRecording: false, isPaused: false };
+  }
+}
+
+// =======================================================
+// ЛОГІКА БЕКАПІВ ТА ЗБЕРЕЖЕННЯ
+// =======================================================
+
+/**
+ * Перевіряє наявність бекапу для поточної зустрічі та відновлює дані.
+ */
+export async function checkAndRecoverBackup() {
+  try {
+    console.log("🔄 [RECOVERY] Checking backup recovery...");
+
+    const response = await chrome.runtime.sendMessage({
+      type: "check_backup_recovery",
+      currentUrl: window.location.href,
     });
+
+    console.log("🔄 [RECOVERY] Backup recovery response:", response);
+
+    if (response?.success && response.shouldRecover) {
+      console.log("🔄 [RECOVERY] Recovering backup for same meeting:", {
+        source: response.source,
+        captionCount: response.data?.captions?.length || 0,
+        meetingUrl: response.data?.url,
+      });
+
+      // Відновлюємо дані
+      if (captionAdapter) {
+        captionAdapter.hydrate(response.data);
+        if (response.data?.captions?.length) {
+          showCaptionNotification(
+            `Recovered ${
+              response.data?.captions?.length || 0
+            } captions from previous session`,
+            "success"
+          );
+        }
+
+        // Оновлюємо стан в background після гідрації
+        await reportStateToBackground();
+      }
+    } else if (response?.success && response.clearedBackup) {
+      console.log("🧹 [CLEANUP] Cleared backup for different meeting");
+    } else {
+      console.log("🔄 [RECOVERY] No backup recovery");
+    }
   } catch (error) {
-    // Ігноруємо помилки, якщо розширення не доступне
+    console.error("❌ [RECOVERY] Failed to check backup recovery:", error);
   }
 }
 
 /**
- * Створює бекап поточних даних сесії
+ * Оновлює видимість панелі на основі стану зустрічі та налаштувань користувача
+ */
+async function updatePanelVisibility(
+  forceShow?: boolean,
+  retryCount = 0
+): Promise<void> {
+  // Якщо forceShow не вказано, обчислюємо автоматично
+  const shouldShow =
+    forceShow !== undefined ? forceShow : await shouldPanelBeVisible();
+
+  console.log(
+    `📱 [PANEL] updatePanelVisibility called with shouldShow: ${shouldShow}, retry: ${retryCount}`
+  );
+
+  const tryUpdatePanel = () => {
+    const panelContainer = document.getElementById(
+      "chrome-extension-float-panel-container"
+    );
+    if (panelContainer) {
+      if (shouldShow) {
+        panelContainer.style.display = "block";
+        console.log("📱 [PANEL] Panel shown");
+      } else {
+        panelContainer.style.display = "none";
+        console.log("📱 [PANEL] Panel hidden");
+      }
+    } else if (retryCount < 10) {
+      console.log(
+        `📱 [PANEL] Panel container not found, retrying in 500ms... (${
+          retryCount + 1
+        }/10)`
+      );
+
+      // Додаткова діагностика - показуємо всі елементи з подібними ID
+      if (retryCount === 0) {
+        const allElements = document.querySelectorAll('[id*="panel"]');
+        console.log(
+          `🔍 [PANEL] Found ${allElements.length} elements with 'panel' in ID:`,
+          Array.from(allElements).map((el) => el.id)
+        );
+      }
+
+      setTimeout(() => updatePanelVisibility(forceShow, retryCount + 1), 500);
+    } else {
+      console.warn(
+        "📱 [PANEL] Panel container not found after 10 retries, giving up"
+      );
+
+      // Фінальна діагностика
+      const allElements = document.querySelectorAll('[id*="chrome-extension"]');
+      console.log(
+        `🔍 [PANEL] Final check - Found ${allElements.length} chrome-extension elements:`,
+        Array.from(allElements).map((el) => el.id)
+      );
+    }
+  };
+
+  tryUpdatePanel();
+}
+
+/**
+ * Примусово зберігає поточну сесію. Використовується при закритті вкладки.
+ */
+export async function triggerAutoSave() {
+  if (captionAdapter) {
+    const state = await captionAdapter.getRecordingState();
+    if (state.isRecording || state.isPaused) {
+      await backupCurrentSession();
+
+      await addBackupToHistory();
+    }
+  }
+}
+
+/**
+ * Створює бекап поточних даних сесії і відправляє в background.
  */
 async function backupCurrentSession() {
-  if (!captionManager || !isCaptionModuleInitialized) {
+  if (!captionAdapter || !isCaptionModuleInitialized) {
     return;
   }
 
   try {
-    const captions = captionManager.getCaptions();
-    const chatMessages = captionManager.getChatMessages();
-    const meetingInfo = captionManager.getMeetingInfo();
-    const recordingState = await captionManager.getRecordingState();
+    const captions = captionAdapter.getCaptions();
+    const chatMessages = captionAdapter.getChatMessages();
+    const meetingInfo = captionAdapter.getMeetingInfo();
+    const recordingState = await captionAdapter.getRecordingState();
 
     // Отримуємо attendeeReport якщо доступний
     let attendeeReport = null;
     try {
-      if (captionManager.getAttendeeReport) {
-        attendeeReport = await captionManager.getAttendeeReport();
+      if (captionAdapter && "getAttendeeReport" in captionAdapter) {
+        attendeeReport = await (captionAdapter as any).getAttendeeReport();
       }
     } catch (error) {
       console.warn("⚠️ [BACKUP] Could not get attendee report:", error);
@@ -354,531 +757,17 @@ function startPeriodicBackups() {
   console.log("🔄 [BACKUP] Periodic backups started (every 30 seconds)");
 }
 
-/**
- * Зупиняє періодичні бекапи
- */
-function stopPeriodicBackups() {
-  if (backupInterval) {
-    clearInterval(backupInterval);
-    backupInterval = null;
-    console.log("⏹️ [BACKUP] Periodic backups stopped");
-  }
-}
-
-/**
- * Обробляє повідомлення від інших частин розширення для субтитрів
- */
-export function handleCaptionMessages(
-  request: any,
-  sender: any,
-  sendResponse: any
-) {
-  if (!captionManager || !isCaptionModuleInitialized) {
-    sendResponse({ success: false, error: "Caption module not initialized" });
-    return;
-  }
-
-  switch (request.type) {
-    case "get_caption_status":
-      handleGetCaptionStatus(sendResponse);
-      break;
-
-    case "start_caption_recording":
-      handleStartCaptionRecording(sendResponse);
-      break;
-
-    case "stop_caption_recording":
-      handleStopCaptionRecording(sendResponse);
-      break;
-
-    case "hard_stop_caption_recording":
-      handleHardStopCaptionRecording(request, sendResponse);
-      break;
-
-    case "pause_caption_recording":
-      handlePauseCaptionRecording(sendResponse);
-      break;
-
-    case "resume_caption_recording":
-      handleResumeCaptionRecording(sendResponse);
-      break;
-
-    case "enable_captions":
-      handleEnableCaptions(sendResponse);
-      break;
-
-    case "disable_captions":
-      handleDisableCaptions(sendResponse);
-      break;
-
-    case "export_caption_data":
-      handleExportCaptionData(request, sendResponse);
-      break;
-
-    case "get_captions":
-      handleGetCaptions(sendResponse);
-      break;
-
-    case "get_meeting_info":
-      handleGetMeetingInfo(sendResponse);
-      break;
-
-    case "clear_caption_data":
-      handleClearCaptionData(sendResponse);
-      break;
-
-    case "toggle_caption_subtitles":
-      handleToggleCaptionSubtitles(request, sendResponse);
-      break;
-
-    case "update_badge_status":
-      handleBadgeStatusUpdate(request, sender);
-      sendResponse({ success: true });
-      break;
-
-    default:
-      // Якщо це не повідомлення для субтитрів, передаємо далі
-      return false;
-  }
-
-  return true; // Вказуємо, що повідомлення оброблено
-}
-
-/**
- * Обробник для перемикання субтитрів
- */
-function handleToggleCaptionSubtitles(
-  request: any,
-  sendResponse: (response: any) => void
-) {
-  try {
-    console.log("🎛️ [UI ACTION] Toggling subtitles...", {
-      enabled: request.data?.enabled,
-      currentState: captionManager?.getCaptions().length || 0,
-    });
-
-    if (!isCaptionModuleInitialized || !captionManager) {
-      console.error("❌ [UI ACTION] Caption module not initialized");
-      sendResponse({ success: false, error: "Caption module not initialized" });
-      return;
-    }
-
-    const enabled = request.data?.enabled;
-    if (enabled === undefined) {
-      console.error("❌ [UI ACTION] Missing enabled parameter");
-      sendResponse({ success: false, error: "Missing enabled parameter" });
-      return;
-    }
-
-    // Тут можна додати логіку для перемикання субтитрів
-    // Наприклад, показувати/ховати панель субтитрів
-    if (enabled) {
-      console.log("📺 [UI ACTION] Showing subtitles panel");
-      showSubtitlesPanel();
-    } else {
-      console.log("📺 [UI ACTION] Hiding subtitles panel");
-      hideSubtitlesPanel();
-    }
-
-    console.log(
-      `✅ [UI ACTION] Subtitles ${
-        enabled ? "enabled" : "disabled"
-      } successfully`
-    );
-    logCaptionEvent("subtitles_toggled", { enabled });
-    sendResponse({ success: true, enabled });
-  } catch (error) {
-    console.error("❌ [UI ACTION] Toggle subtitles failed:", error);
-    logCaptionEvent("error", {
-      type: "toggle_subtitles_failed",
-      error: error instanceof Error ? error.message : String(error),
-    });
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-// Функції для керування панеллю субтитрів
-function showSubtitlesPanel() {
-  // Логіка показу панелі субтитрів
-  console.log("📺 Showing subtitles panel");
-  // Тут можна додати логіку для показу FloatPanelSubtitles
-}
-
-function hideSubtitlesPanel() {
-  // Логіка приховування панелі субтитрів
-  console.log("📺 Hiding subtitles panel");
-  // Тут можна додати логіку для приховування FloatPanelSubtitles
-}
-
-/**
- * Обробники конкретних повідомлень для субтитрів
- */
-async function handleGetCaptionStatus(sendResponse: any) {
-  try {
-    console.log("📊 [UI ACTION] Getting caption status...");
-
-    const recordingState = await captionManager.getRecordingState();
-    const isInMeeting = await captionManager.isInMeeting();
-    const isCaptionsEnabled = await captionManager.isCaptionsEnabled();
-    const captions = captionManager.getCaptions();
-    const chatMessages = captionManager.getChatMessages();
-
-    const status = {
-      isInitialized: true,
-      isInMeeting,
-      isCaptionsEnabled,
-      recordingState,
-      platform: getCurrentPlatformInfo().name,
-      captionCount: captions.length,
-      chatMessageCount: chatMessages.length,
-    };
-
-    console.log("📊 [UI ACTION] Caption status:", status);
-
-    sendResponse({
-      success: true,
-      data: status,
-    });
-  } catch (error) {
-    console.error("❌ [UI ACTION] Get caption status failed:", error);
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function handleStartCaptionRecording(sendResponse: any) {
-  try {
-    console.log("🎬 [UI ACTION] Starting caption recording...");
-    const result = await captionManager.startRecording();
-
-    console.log("✅ [UI ACTION] Start recording result:", {
-      success: result.success,
-      message: result.message,
-      error: result.error,
-      warning: result.warning,
-    });
-
-    // Показуємо попередження про субтитри, якщо є
-    if (result.warning) {
-      showCaptionNotification(result.warning, "warning");
-    }
-
-    sendResponse({
-      success: result.success,
-      data: result,
-      error: result.error,
-      warning: result.warning,
-    });
-  } catch (error) {
-    console.error("❌ [UI ACTION] Start recording failed:", error);
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function handleStopCaptionRecording(sendResponse: any) {
-  try {
-    console.log("⏹️ [UI ACTION] Stopping caption recording...");
-    const result = await captionManager.stopRecording();
-
-    console.log("✅ [UI ACTION] Stop recording result:", {
-      success: result.success,
-      message: result.message,
-      error: result.error,
-    });
-
-    sendResponse({
-      success: result.success,
-      data: result,
-      error: result.error,
-    });
-  } catch (error) {
-    console.error("❌ [UI ACTION] Stop recording failed:", error);
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function handleHardStopCaptionRecording(request: any, sendResponse: any) {
-  try {
-    console.log(
-      "🗑️ [UI ACTION] Hard stopping caption recording and clearing all data...",
-      {
-        clearData: request.data?.clearData,
-        clearBackup: request.data?.clearBackup,
-        forceStop: request.data?.forceStop,
-      }
-    );
-
-    // Зупиняємо періодичні бекапи
-    stopPeriodicBackups();
-
-    // Перевіряємо, чи існує менеджер
-    if (!captionManager) {
-      console.warn("⚠️ [HARD STOP] Caption manager not initialized");
-      sendResponse({
-        success: true,
-        data: { message: "No active recording to stop" }
-      });
-      return;
-    }
-
-    // Якщо йде запис, спочатку зупиняємо його (але без збереження)
-    if (isCaptionModuleInitialized) {
-      try {
-        const recordingState = await captionManager.getRecordingState();
-        // if (recordingState.isRecording) {
-          // Примусово зупиняємо запис без збереження
-          console.log("🛑 [HARD STOP] Force stopping active recording...");
-          // Встановлюємо стан зупинки без виклику stopRecording()
-          captionManager.isRecording = false;
-          captionManager.isPaused = false;
-        // }
-      } catch (error) {
-        console.warn("⚠️ [HARD STOP] Could not check recording state:", error);
-      }
-    }
-
-    // Очищаємо дані в менеджері субтитрів
-    if (request.data?.clearData) {
-      try {
-        // Спочатку очищаємо дані
-        await captionManager.clearData();
-        console.log("�� [HARD STOP] Caption data cleared from manager");
-
-        // // Потім очищаємо ресурси (це також встановить adapter = null)
-        // await captionManager.cleanup();
-        // console.log("🧹 [HARD STOP] Adapter resources cleaned up");
-
-        // // Скидаємо стан менеджера
-        // captionManager = null;
-        // isCaptionModuleInitialized = false;
-        console.log("🧹 [HARD STOP] Caption manager state reset");
-      } catch (error) {
-        console.error("❌ [HARD STOP] Failed to clear caption data:", error);
-        // Навіть якщо очищення не вдалося, скидаємо стан
-        captionManager = null;
-        isCaptionModuleInitialized = false;
-      }
-    }
-
-    // Очищаємо backup в background
-    if (request.data?.clearBackup) {
-      try {
-        const clearResponse = await chrome.runtime.sendMessage({
-          type: "clear_caption_backup",
-        });
-
-        if (clearResponse?.success) {
-          console.log("�� [HARD STOP] Backup cleared successfully");
-        } else {
-          console.error(
-            "❌ [HARD STOP] Failed to clear backup:",
-            clearResponse?.error
-          );
-        }
-      } catch (error) {
-        console.error("❌ [HARD STOP] Failed to clear backup:", error);
-      }
-    }
-
-    // Оновлюємо статус бейджа
-    updateBadgeStatus(false);
-
-    console.log("✅ [HARD STOP] Hard stop completed successfully");
-    logCaptionEvent("hard_stop_completed", {
-      clearData: request.data?.clearData,
-      clearBackup: request.data?.clearBackup,
-      forceStop: request.data?.forceStop,
-    });
-
-    sendResponse({
-      success: true,
-      data: {
-        recordingStopped: true,
-        clearedData: request.data?.clearData,
-        clearedBackup: request.data?.clearBackup,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error) {
-    console.error("❌ [HARD STOP] Hard stop failed:", error);
-    logCaptionEvent("error", {
-      type: "hard_stop_failed",
-      error: error instanceof Error ? error.message : String(error),
-    });
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function handlePauseCaptionRecording(sendResponse: any) {
-  try {
-    console.log("⏸️ [UI ACTION] Pausing caption recording...");
-    const result = await captionManager.pauseRecording();
-
-    console.log("✅ [UI ACTION] Pause recording result:", {
-      success: result.success,
-      message: result.message,
-      error: result.error,
-    });
-
-    sendResponse({
-      success: result.success,
-      data: result,
-      error: result.error,
-    });
-  } catch (error) {
-    console.error("❌ [UI ACTION] Pause recording failed:", error);
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function handleResumeCaptionRecording(sendResponse: any) {
-  try {
-    console.log("▶️ [UI ACTION] Resuming caption recording...");
-    const result = await captionManager.resumeRecording();
-
-    console.log("✅ [UI ACTION] Resume recording result:", {
-      success: result.success,
-      message: result.message,
-      error: result.error,
-    });
-
-    sendResponse({
-      success: result.success,
-      data: result,
-      error: result.error,
-    });
-  } catch (error) {
-    console.error("❌ [UI ACTION] Resume recording failed:", error);
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function handleEnableCaptions(sendResponse: any) {
-  try {
-    const result = await captionManager.enableCaptions();
-    sendResponse({
-      success: result.success,
-      data: result,
-      error: result.error,
-    });
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function handleDisableCaptions(sendResponse: any) {
-  try {
-    const result = await captionManager.disableCaptions();
-    sendResponse({
-      success: result.success,
-      data: result,
-      error: result.error,
-    });
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function handleExportCaptionData(request: any, sendResponse: any) {
-  try {
-    const result = await captionManager.exportData(
-      request.format,
-      request.options
-    );
-    sendResponse(result);
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-function handleGetCaptions(sendResponse: any) {
-  try {
-    const captions = captionManager.getCaptions();
-    const chatMessages = captionManager.getChatMessages();
-
-    sendResponse({
-      success: true,
-      data: {
-        captions,
-        chatMessages,
-        count: captions.length,
-      },
-    });
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-function handleGetMeetingInfo(sendResponse: any) {
-  try {
-    const meetingInfo = captionManager.getMeetingInfo();
-    sendResponse({
-      success: true,
-      data: meetingInfo,
-    });
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function handleClearCaptionData(sendResponse: any) {
-  try {
-    const result = await captionManager.clearData();
-    sendResponse(result);
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-/**
- * Очищає ресурси при виході зі сторінки
- */
+// =======================================================
+// ОЧИЩЕННЯ
+// =======================================================
 export async function cleanupCaptionModule() {
-  if (captionManager) {
+  if (captionAdapter) {
     try {
       // Зупиняємо періодичні бекапи
       stopPeriodicBackups();
 
-      await captionManager.cleanup();
-      captionManager = null;
+      await captionAdapter.cleanup();
+      captionAdapter = null;
       isCaptionModuleInitialized = false;
       logCaptionEvent("cleanup_completed", {});
     } catch (error) {
@@ -891,108 +780,94 @@ export async function cleanupCaptionModule() {
 }
 
 /**
- * Примусово створює бекап поточної сесії. Використовується при закритті вкладки.
- * Зберігає дані в BACKUP для можливого продовження запису.
+ * Повністю вимикає caption module (використовується при isExtensionEnabled = false)
  */
-export async function triggerAutoSave() {
-  if (captionManager) {
-    const state = await captionManager.getRecordingState();
-    if ((state.isRecording || state.isPaused) && state.captionCount > 0) {
-      console.log("Triggering backup on page unload...");
-      await backupCurrentSession();
+export async function disableCaptionModule() {
+  console.log("🔌 [MODULE] Disabling caption module");
 
-      // Додаємо бекап в історію як останній запис
-      await addBackupToHistory();
+  // Зупиняємо запис якщо активний
+  if (captionAdapter) {
+    try {
+      await captionAdapter.hardStopRecording();
+      console.log("🔌 [MODULE] Recording stopped");
+    } catch (error) {
+      console.warn("Failed to stop recording:", error);
     }
   }
+
+  // Приховуємо панель
+  await updatePanelVisibility(false);
+
+  // Очищаємо модуль
+  await cleanupCaptionModule();
+
+  // Відправляємо стан в background
+  await reportStateToBackground();
+
+  console.log("🔌 [MODULE] Caption module disabled");
 }
 
 /**
- * Додає бекап в історію як останній запис
+ * Повторно ініціалізує caption module (використовується при isExtensionEnabled = true)
  */
-async function addBackupToHistory() {
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: "add_backup_to_history",
-    });
+export async function reinitializeCaptionModule() {
+  console.log("🔌 [MODULE] Reinitializing caption module");
+  console.log(
+    "🔌 [MODULE] Current isCaptionModuleInitialized:",
+    isCaptionModuleInitialized
+  );
 
-    if (response?.success) {
-      if (response.skipped) {
-        console.log("⚠️ [BACKUP] Backup skipped (no data):", response.reason);
-      } else {
-        console.log("✅ [BACKUP] Backup added to history");
-      }
-    } else {
-      console.error(
-        "❌ [BACKUP] Failed to add backup to history:",
-        response?.error
-      );
-    }
-  } catch (error) {
-    console.error("❌ [BACKUP] Failed to add backup to history:", error);
+  // Очищаємо попередній стан
+  console.log("🔌 [MODULE] Cleaning up previous state...");
+  await cleanupCaptionModule();
+  console.log("🔌 [MODULE] Cleanup completed");
+
+  // Скидаємо глобальні змінні
+  isCaptionModuleInitialized = false;
+  isPanelVisible = true; // Встановлюємо панель видимою при реініціалізації
+
+  // Видаляємо маркер ініціалізації щоб дозволити повторну ініціалізацію
+  const existingMarker = document.getElementById("caption-module-initialized");
+  if (existingMarker) {
+    existingMarker.remove();
+    console.log(
+      "🔌 [MODULE] Removed initialization marker for reinitialization"
+    );
   }
+
+  // Ініціалізуємо заново
+  console.log("🔌 [MODULE] Starting reinitialization...");
+  await initializeCaptionModule();
+  console.log("🔌 [MODULE] Reinitialization completed");
+
+  // Встановлюємо видимість панелі після реініціалізації
+  setTimeout(async () => {
+    await updatePanelVisibility();
+    console.log("🔌 [MODULE] Panel visibility updated after reinitialization");
+  }, 200);
+
+  // Відправляємо оновлений стан в background
+  await reportStateToBackground();
+
+  console.log("🔌 [MODULE] Caption module reinitialized");
 }
 
 /**
- * Перевіряє та відновлює бекап при вході в зустріч
+ * Зупиняє періодичні бекапи
  */
-export async function checkAndRecoverBackup() {
-  try {
-    console.log("🔄 [RECOVERY] Checking backup recovery...");
-
-    const response = await chrome.runtime.sendMessage({
-      type: "check_backup_recovery",
-      currentUrl: window.location.href,
-    });
-
-    console.log("🔄 [RECOVERY] Backup recovery response:", response);
-
-    if (response?.success && response.shouldRecover) {
-      console.log("🔄 [RECOVERY] Recovering backup for same meeting:", {
-        source: response.source,
-        captionCount: response.data?.captions?.length || 0,
-        meetingUrl: response.data?.url,
-      });
-
-      // Відновлюємо дані
-      if (captionManager) {
-        captionManager.hydrate(response.data);
-        if (response.data?.captions?.length) {
-          showCaptionNotification(
-            `Recovered ${
-              response.data?.captions?.length || 0
-            } captions from previous session`,
-            "success"
-          );
-        }
-      }
-    } else if (response?.success && response.clearedBackup) {
-      console.log("🧹 [CLEANUP] Cleared backup for different meeting");
-    } else {
-      console.log("🔄 [RECOVERY] No backup recovery");
-    }
-  } catch (error) {
-    console.error("❌ [RECOVERY] Failed to check backup recovery:", error);
+function stopPeriodicBackups() {
+  if (backupInterval) {
+    clearInterval(backupInterval);
+    backupInterval = null;
+    console.log("⏹️ [BACKUP] Periodic backups stopped");
   }
-}
-
-/**
- * Перевіряє, чи ініціалізований модуль субтитрів
- */
-export function isCaptionModuleReady(): boolean {
-  return isCaptionModuleInitialized && captionManager !== null;
-}
-
-/**
- * Отримує поточний менеджер субтитрів
- */
-export function getCaptionManager(): any {
-  return captionManager;
 }
 
 let lastSaveTime = 0;
 const SAVE_DEBOUNCE_MS = 1000; // 1 секунда
-
+/**
+ * Зберігає дані субтитрів в background
+ */
 async function saveCaptionDataToBackground(data: any) {
   // Уникаємо дублікатів збереження
   const now = Date.now();
@@ -1003,10 +878,15 @@ async function saveCaptionDataToBackground(data: any) {
   lastSaveTime = now;
 
   try {
-    const captions = captionManager.getCaptions();
-    const chatMessages = captionManager.getChatMessages();
-    const meetingInfo = captionManager.getMeetingInfo();
-    const recordingState = await captionManager.getRecordingState();
+    if (!captionAdapter) {
+      console.error("❌ [SAVE] Caption adapter not available");
+      return;
+    }
+
+    const captions = captionAdapter.getCaptions();
+    const chatMessages = captionAdapter.getChatMessages();
+    const meetingInfo = captionAdapter.getMeetingInfo();
+    const recordingState = await captionAdapter.getRecordingState();
 
     const response = await chrome.runtime.sendMessage({
       type: "save_caption_data",
@@ -1049,19 +929,25 @@ async function saveCaptionDataToBackground(data: any) {
   }
 }
 
-function handleBadgeStatusUpdate(
-  message: any,
-  sender: chrome.runtime.MessageSender
-) {
-  if (sender.tab?.id) {
-    chrome.action.setBadgeText({
-      text: message.isRecording ? "REC" : "",
-      tabId: sender.tab.id,
+async function addBackupToHistory() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "add_backup_to_history",
     });
 
-    chrome.action.setBadgeBackgroundColor({
-      color: message.isRecording ? "#f59e0b" : "#10b981",
-      tabId: sender.tab.id,
-    });
+    if (response?.success) {
+      if (response.skipped) {
+        console.log("⚠️ [BACKUP] Backup skipped (no data):", response.reason);
+      } else {
+        console.log("✅ [BACKUP] Backup added to history");
+      }
+    } else {
+      console.error(
+        "❌ [BACKUP] Failed to add backup to history:",
+        response?.error
+      );
+    }
+  } catch (error) {
+    console.error("❌ [BACKUP] Failed to add backup to history:", error);
   }
 }

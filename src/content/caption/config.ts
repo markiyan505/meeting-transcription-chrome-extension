@@ -51,12 +51,14 @@ export const googleMeetConfig = {
   uiVersions: {
     1: {
       captionsButton: ".material-icons-extended",
+      captionsButtonTextOn: "closed_caption",
       captionsButtonText: "closed_caption_off",
       leaveButton: ".google-material-icons",
       leaveButtonText: "call_end",
     },
     2: {
       captionsButton: ".google-symbols",
+      captionsButtonTextOn: "closed_caption",
       captionsButtonText: "closed_caption_off",
       leaveButton: ".google-symbols",
       leaveButtonText: "call_end",

@@ -1,36 +1,36 @@
 import React, { useState, useEffect } from "react";
-import { Clock, RefreshCw } from "lucide-react";
+import { Clock, RefreshCw, AlertCircle } from "lucide-react";
 import { Typography } from "@/components/shared/ui/typography";
 import { Button } from "@/components/shared/ui/button/Button";
 import { Panel } from "@/components/shared/ui/panel/Panel";
 import { Icon } from "@/components/shared/ui/icon/Icon";
 
 interface TokenStatusProps {
-  tokenExpiration?: Date | null;
+  tokenExpiresAt?: number; // UNIX timestamp в секундах
   onRefreshToken?: () => void;
   className?: string;
+  isAuthenticated?: boolean;
 }
 
 const TokenStatus: React.FC<TokenStatusProps> = ({
-  tokenExpiration: propTokenExpiration,
+  tokenExpiresAt,
   onRefreshToken,
   className = "",
+  isAuthenticated = false,
 }) => {
   // Use prop token expiration or create a mock one
-  const [tokenExpiration, setTokenExpiration] = useState<Date | null>(
-    propTokenExpiration || null
-  );
+  const [tokenExpiration, setTokenExpiration] = useState<Date | null>(null);
   const [timeUntilExpiration, setTimeUntilExpiration] = useState<string>("");
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   useEffect(() => {
-    // If no token expiration provided, create a mock one (24 hours from now)
-    if (!propTokenExpiration) {
-      const expirationTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      setTokenExpiration(expirationTime);
+    if (tokenExpiresAt) {
+      // Конвертуємо UNIX timestamp в Date
+      setTokenExpiration(new Date(tokenExpiresAt * 1000));
     } else {
-      setTokenExpiration(propTokenExpiration);
+      setTokenExpiration(null);
     }
-  }, [propTokenExpiration]);
+  }, [tokenExpiresAt]);
 
   useEffect(() => {
     if (!tokenExpiration) return;
@@ -72,14 +72,60 @@ const TokenStatus: React.FC<TokenStatusProps> = ({
     return () => clearInterval(interval);
   }, [tokenExpiration]);
 
-  const handleRefreshToken = () => {
-    if (onRefreshToken) {
-      onRefreshToken();
-    } else {
-      // Mock refresh - in real app this would open auth URL
-      window.open("https://auth.example.com/refresh", "_blank");
+  const handleRefreshToken = async () => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+
+    try {
+      if (onRefreshToken) {
+        await onRefreshToken();
+      } else {
+        // Відправляємо повідомлення в background script для оновлення токена
+        const response = await chrome.runtime.sendMessage({
+          type: "REFRESH_TOKEN",
+        });
+
+        if (response?.success) {
+          // Оновлюємо локальний стан
+          const newExpiration = new Date(response.expiresAt);
+          setTokenExpiration(newExpiration);
+        } else {
+          console.error("Failed to refresh token:", response?.error);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing token:", error);
+    } finally {
+      setIsRefreshing(false);
     }
   };
+
+  // Якщо користувач не автентифікований, показуємо повідомлення про необхідність входу
+  if (!isAuthenticated) {
+    return (
+      <div className={`flex flex-col items-end space-y-2 ${className}`}>
+        <Panel variant="warning" size="sm" className="px-3 py-2">
+          <div className="flex flex-col items-center">
+            <div className="flex items-center space-x-2">
+              <Icon icon={AlertCircle} color="warning" />
+              <Typography variant="caption" color="warning">
+                Not authenticated
+              </Typography>
+            </div>
+          </div>
+        </Panel>
+        <Button
+          onClick={() => window.open("http://localhost:3000/login", "_blank")}
+          variant="outline"
+          size="sm"
+          className="text-xs"
+        >
+          Go to Login
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex flex-col items-end space-y-2 ${className}`}>
@@ -108,8 +154,9 @@ const TokenStatus: React.FC<TokenStatusProps> = ({
         size="sm"
         leftIcon={<RefreshCw />}
         className="text-xs"
+        disabled={isRefreshing}
       >
-        Refresh Token
+        {isRefreshing ? "Refreshing..." : "Refresh Token"}
       </Button>
     </div>
   );

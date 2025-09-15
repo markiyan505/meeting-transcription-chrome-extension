@@ -12,6 +12,7 @@ import { quickStatsConfig } from "../../data/mockData";
 interface HomeTabProps {
   isRecording: boolean;
   isPaused: boolean;
+  isInMeeting: boolean;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onPauseRecording: () => void;
@@ -27,6 +28,7 @@ interface HomeTabProps {
 const HomeTab: React.FC<HomeTabProps> = ({
   isRecording,
   isPaused,
+  isInMeeting,
   onStartRecording,
   onStopRecording,
   onPauseRecording,
@@ -45,23 +47,34 @@ const HomeTab: React.FC<HomeTabProps> = ({
           QUICK ACTIONS
         </Typography>
         <div className="space-y-2">
-          <RecordingControls
-            isRecording={isRecording}
-            isPaused={isPaused}
-            onStartRecording={onStartRecording}
-            onStopRecording={onStopRecording}
-            onPauseRecording={onPauseRecording}
-            onResumeRecording={onResumeRecording}
-            onDeleteRecording={onDeleteRecording}
-          />
+          <div className={!isInMeeting ? "opacity-50 pointer-events-none" : ""}>
+            <RecordingControls
+              isRecording={isRecording}
+              isPaused={isPaused}
+              onStartRecording={onStartRecording}
+              onStopRecording={onStopRecording}
+              onPauseRecording={onPauseRecording}
+              onResumeRecording={onResumeRecording}
+              onDeleteRecording={onDeleteRecording}
+            />
+          </div>
           <Button
             onClick={onToggleFloatPanel}
             variant="outline"
             size="lg"
             leftIcon={<ExternalLink />}
+            disabled={!isInMeeting}
+            className={!isInMeeting ? "opacity-50" : ""}
           >
             {isFloatPanelVisible ? "Hide Panel" : "Show Panel"}
           </Button>
+          {!isInMeeting && (
+            <div className="text-center">
+              <Typography variant="caption" color="muted" className="text-xs">
+                Join a meeting to enable recording controls
+              </Typography>
+            </div>
+          )}
         </div>
       </div>
 
