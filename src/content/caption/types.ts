@@ -6,9 +6,7 @@ import type {
   CaptionEntry,
   ChatMessage,
   MeetingInfo,
-  HydrationData,
   SessionData,
-  RecordingState,
   ExportFormat,
   ExportOptions,
   OperationResult,
@@ -18,9 +16,7 @@ export type {
   CaptionEntry,
   ChatMessage,
   MeetingInfo,
-  HydrationData,
   SessionData,
-  RecordingState,
   ExportFormat,
   ExportOptions,
   OperationResult,
@@ -48,13 +44,13 @@ export interface CaptionEvent {
   timestamp: string;
 }
 
+
 export interface CaptionAdapter {
   initialize(): Promise<OperationResult>;
-  hydrate(data: HydrationData): void;
+  hydrate(data: SessionData): void;
 
   isCaptionsEnabled(): Promise<boolean>;
   isInMeeting(): Promise<boolean>;
-  getRecordingState(): Promise<RecordingState>;
 
   enableCaptions(): Promise<OperationResult>;
   disableCaptions(): Promise<OperationResult>;

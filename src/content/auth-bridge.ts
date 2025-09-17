@@ -19,7 +19,7 @@ const sendSessionToBackground = () => {
       const parsedSession = JSON.parse(sessionData);
 
       chrome.runtime.sendMessage({
-        type: "AUTH_SESSION_FROM_PAGE",
+        type: "COMMAND.AUTH.UPDATE_SESSION",
         payload: {
           session: parsedSession,
           key: sessionKey,
@@ -38,7 +38,7 @@ const sendSessionToBackground = () => {
     }
   } else {
     chrome.runtime.sendMessage({
-      type: "AUTH_SESSION_CLEARED",
+      type: "COMMAND.AUTH.CLEAR_SESSION",
       payload: { timestamp: Date.now() },
     });
 

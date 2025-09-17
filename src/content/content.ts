@@ -5,11 +5,11 @@ import { CONTROL_PANEL } from "./types/types";
 import { createFloatPanel } from "./panels/panelFactory";
 import { setupWindowMessageHandler } from "./panels/messaging";
 import {
-  initializeCaptionModule,
-  handleCaptionMessages,
+  handleChromeMessages,
   cleanupCaptionModule,
-  triggerAutoSave,
 } from "./captionIntegration";
+
+import { initializeCaptionModuleOnload } from "./captionIntegration";
 
 /**
  * Loads CSS file with error handling
@@ -40,27 +40,14 @@ function initializeContentScript(): void {
   setupWindowMessageHandler();
   createFloatPanel(CONTROL_PANEL);
 
-  // Setup caption message handler
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    handleCaptionMessages(message, sender, sendResponse).catch((error) => {
-      sendResponse({ success: false, error: error.message });
-    });
-    return true;
-  });
-
-  // Setup event listeners
-  window.addEventListener("beforeunload", async () => {
-    await triggerAutoSave();
-    cleanupCaptionModule();
-  });
-  window.addEventListener("unload", cleanupCaptionModule);
-
-  // Initialize caption module after DOM is ready
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initializeCaptionModule);
+    document.addEventListener("DOMContentLoaded", initializeCaptionModuleOnload);
   } else {
-    initializeCaptionModule();
+    initializeCaptionModuleOnload();
   }
+
+  window.addEventListener("beforeunload", cleanupCaptionModule);
+  window.addEventListener("unload", cleanupCaptionModule);
 }
 
 // Initialize content script

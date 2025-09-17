@@ -6,7 +6,7 @@ import { Panel } from "@/components/shared/ui/panel/Panel";
 import { Icon } from "@/components/shared/ui/icon/Icon";
 
 interface TokenStatusProps {
-  tokenExpiresAt?: number; 
+  tokenExpiresAt?: number;
   onRefreshToken?: () => void;
   className?: string;
   isAuthenticated?: boolean;
@@ -24,7 +24,6 @@ const TokenStatus: React.FC<TokenStatusProps> = ({
 
   useEffect(() => {
     if (tokenExpiresAt) {
-     
       setTokenExpiration(new Date(tokenExpiresAt * 1000));
     } else {
       setTokenExpiration(null);
@@ -79,7 +78,7 @@ const TokenStatus: React.FC<TokenStatusProps> = ({
         await onRefreshToken();
       } else {
         const response = await chrome.runtime.sendMessage({
-          type: "REFRESH_TOKEN",
+          type: "COMMAND.AUTH.REFRESH_TOKEN",
         });
 
         if (response?.success) {

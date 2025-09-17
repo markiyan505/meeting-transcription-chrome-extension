@@ -8,38 +8,115 @@ import {
   CaptionEntry,
   ChatMessage,
   MeetingInfo,
-  RecordingState,
-  ExportOptions,
+  SessionData,
   OperationResult,
   AdapterConfig,
-  HydrationData,
 } from "../types";
+
+import type { AttendeeEvent } from "@/types/session";
+import type { MeetingMetadata } from "@/types/messages";
+import { ErrorHandler } from "../utils/originalUtils";
 
 export abstract class BaseAdapter implements CaptionAdapter {
   protected config: AdapterConfig;
+
   protected eventListeners: Map<string, Function[]> = new Map();
   protected isInitialized = false;
   protected isRecording = false;
   protected isPaused = false;
-  protected recordingStartTime?: string;
-  protected pauseStartTime?: string;
-  protected totalPauseDuration = 0;
+
   protected captions: CaptionEntry[] = [];
   protected chatMessages: ChatMessage[] = [];
-  protected meetingInfo: MeetingInfo = {
-    title: "",
-    startTime: "",
-    attendees: [],
-    platform: "unknown",
+  protected attendeeEvents: AttendeeEvent[] = [];
+  protected meetingInfo: MeetingMetadata = {};
+
+  protected TIMING = {
+    BUTTON_CLICK_DELAY: 400,
+    RETRY_DELAY: 2000,
+    DEBOUNCE_RATE: 1000,
+    ATTENDEE_UPDATE_INTERVAL: 60000,
   };
 
+  private lastActionTimestamps = new Map<string, number>();
   private meetingStateObserver: MutationObserver | null = null;
   protected wasInMeeting = false;
   private meetingStateDebounceTimer: NodeJS.Timeout | null = null;
+  protected cachedElements = new Map<
+    string,
+    { element: Element; timestamp: number }
+  >();
 
   constructor(config: AdapterConfig) {
     this.config = config;
     this.meetingInfo.platform = config.platform as any;
+  }
+
+  protected getCachedElement(selector: string, expiry = 5000): Element | null {
+    const now = Date.now();
+    const cached = this.cachedElements.get(selector);
+
+    if (
+      cached &&
+      now - cached.timestamp < expiry &&
+      document.body.contains(cached.element)
+    ) {
+      return cached.element;
+    }
+
+    const element = document.querySelector(selector);
+    if (element) {
+      this.cachedElements.set(selector, { element, timestamp: now });
+    } else {
+      this.cachedElements.delete(selector);
+    }
+    return element;
+  }
+
+  getMeetingInfo(): MeetingInfo {
+    return {
+      ...this.meetingInfo,
+      url: window.location.href,
+      title: this.meetingInfo.title || "Untitled Meeting",
+      startTime: this.meetingInfo.startTime || new Date().toISOString(),
+      attendees: this.meetingInfo.attendees || [],
+      platform: this.meetingInfo.platform || "unknown",
+    };
+  }
+
+  protected isActionDebounced(actionName: string, rate?: number): boolean {
+    const now = Date.now();
+    const lastAttempt = this.lastActionTimestamps.get(actionName) || 0;
+    const debounceRate = rate || this.TIMING.DEBOUNCE_RATE;
+
+    if (now - lastAttempt < debounceRate) {
+      console.warn(`[BaseAdapter] Action "${actionName}" is debounced.`);
+      return true;
+    }
+
+    this.lastActionTimestamps.set(actionName, now);
+    return false;
+  }
+
+  protected safeWrap<T extends (...args: any[]) => any>(
+    fn: T,
+    context: string
+  ): T {
+    return ErrorHandler.wrap(fn, context);
+  }
+
+  protected delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  protected debounce<T extends (...args: any[]) => any>(
+    func: T,
+    wait: number
+  ): (...args: Parameters<T>) => void {
+    let timeout: NodeJS.Timeout;
+    return (...args: Parameters<T>) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func(...args), wait);
+    };
   }
 
   abstract initialize(): Promise<OperationResult>;
@@ -47,7 +124,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
   abstract isInMeeting(): Promise<boolean>;
   abstract enableCaptions(): Promise<OperationResult>;
   abstract disableCaptions(): Promise<OperationResult>;
-  abstract isCaptionsButtonAvailable(): Promise<boolean>;
 
   protected abstract setupPlatformObservers(): void;
   protected abstract cleanupPlatformObservers(): void;
@@ -77,10 +153,8 @@ export abstract class BaseAdapter implements CaptionAdapter {
 
     if (this.wasInMeeting !== nowInMeeting) {
       if (nowInMeeting) {
-        this.meetingInfo.startTime = new Date().toISOString();
         this.emit("meeting_started", { timestamp: this.meetingInfo.startTime });
       } else {
-        this.meetingInfo.endTime = new Date().toISOString();
         this.emit("meeting_ended", { timestamp: new Date().toISOString() });
       }
       this.wasInMeeting = nowInMeeting;
@@ -101,25 +175,21 @@ export abstract class BaseAdapter implements CaptionAdapter {
     return { success: true, message: "Cleanup completed successfully" };
   }
 
-  hydrate(data: HydrationData): void {
+  // hydrate(data: Pick<SessionState, 'captions' | 'chatMessages' | 'metadata'>): void {
+  //   this.captions = data.captions || [];
+  //   this.chatMessages = data.chatMessages || [];
+  //   this.meetingInfo = data.metadata || this.meetingInfo;
+  //   this.emit("hydrated", { captionCount: this.captions.length });
+  // }
+
+  hydrate(data: SessionData): void {
     this.captions = data.captions || [];
     this.chatMessages = data.chatMessages || [];
+    this.attendeeEvents = data.attendeeEvents || [];
     this.meetingInfo = data.meetingInfo || this.meetingInfo;
     this.emit("hydrated", { captionCount: this.captions.length });
   }
 
-  async getRecordingState(): Promise<RecordingState> {
-    return {
-      isRecording: this.isRecording,
-      isPaused: this.isPaused,
-      startTime: this.recordingStartTime,
-      pauseTime: this.pauseStartTime,
-      totalPauseDuration: this.totalPauseDuration,
-      captionCount: this.captions.length,
-      chatMessageCount: this.chatMessages.length,
-      attendeeCount: this.meetingInfo.attendees.length,
-    };
-  }
 
   async startRecording(): Promise<OperationResult> {
     if (this.isRecording) {
@@ -129,7 +199,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
     try {
       const captionsEnabled = await this.isCaptionsEnabled();
       if (!captionsEnabled) {
- 
         const enableResult = await this.enableCaptions();
         if (!enableResult.success) {
           return {
@@ -140,27 +209,25 @@ export abstract class BaseAdapter implements CaptionAdapter {
 
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        if (!(await this.isCaptionsEnabled())) {
+        const finalCheck = await this.isCaptionsEnabled();
+        if (!finalCheck) {
           console.error(
-            "❌ [CAPTIONS] Final check failed. Captions are not enabled."
+            "[CAPTIONS] Final check failed. Captions are not enabled."
           );
           return {
             success: false,
             error: "Subtitles could not be activated.",
           };
         }
-
       }
 
       this.isRecording = true;
       this.isPaused = false;
-      this.recordingStartTime = new Date().toISOString();
-      this.totalPauseDuration = 0;
 
       this.clearDataInternal();
       this.setupPlatformObservers();
 
-      this.emit("recording_started", { timestamp: this.recordingStartTime });
+      this.emit("recording_started", {});
       return { success: true, message: "Recording started successfully" };
     } catch (error) {
       return { success: false, error: `Failed to start recording: ${error}` };
@@ -174,15 +241,10 @@ export abstract class BaseAdapter implements CaptionAdapter {
 
     this.isRecording = false;
     this.isPaused = false;
-    this.meetingInfo.endTime = new Date().toISOString();
 
     this.cleanupPlatformObservers();
 
-    this.emit("recording_stopped", {
-      timestamp: this.meetingInfo.endTime,
-      captionCount: this.captions.length,
-      chatMessageCount: this.chatMessages.length,
-    });
+    this.emit("recording_stopped", {});
 
     return { success: true, message: "Recording stopped successfully" };
   }
@@ -194,13 +256,10 @@ export abstract class BaseAdapter implements CaptionAdapter {
 
     this.isRecording = false;
     this.isPaused = false;
-    this.meetingInfo.endTime = new Date().toISOString();
 
     this.cleanupPlatformObservers();
 
-    this.emit("recording_hard_stopped", {
-      timestamp: this.meetingInfo.endTime,
-    });
+    this.emit("recording_hard_stopped", {});
 
     this.clearDataInternal();
 
@@ -213,9 +272,8 @@ export abstract class BaseAdapter implements CaptionAdapter {
     }
 
     this.isPaused = true;
-    this.pauseStartTime = new Date().toISOString();
 
-    this.emit("recording_paused", { timestamp: this.pauseStartTime });
+    this.emit("recording_paused", {});
     return { success: true, message: "Recording paused successfully" };
   }
 
@@ -224,14 +282,7 @@ export abstract class BaseAdapter implements CaptionAdapter {
       return { success: false, error: "Recording not paused" };
     }
 
-    if (this.pauseStartTime) {
-      const pauseDuration =
-        Date.now() - new Date(this.pauseStartTime).getTime();
-      this.totalPauseDuration += pauseDuration;
-    }
-
     this.isPaused = false;
-    this.pauseStartTime = undefined;
 
     this.emit("recording_resumed", { timestamp: new Date().toISOString() });
     return { success: true, message: "Recording resumed successfully" };
@@ -243,10 +294,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
 
   getChatMessages(): ChatMessage[] {
     return [...this.chatMessages];
-  }
-
-  getMeetingInfo(): MeetingInfo {
-    return { ...this.meetingInfo };
   }
 
   async clearData(): Promise<OperationResult> {
@@ -261,7 +308,6 @@ export abstract class BaseAdapter implements CaptionAdapter {
     this.meetingInfo = {
       ...this.meetingInfo,
       startTime: "",
-      endTime: undefined,
       attendees: [],
     };
   }

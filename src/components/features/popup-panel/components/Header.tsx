@@ -4,22 +4,21 @@ import { Toggle } from "@/components/shared/ui/toggle/Toggle";
 import { Typography } from "@/components/shared/ui/typography";
 import { Icon } from "@/components/shared/ui/icon/Icon";
 import { Panel } from "@/components/shared/ui/panel/Panel";
+import { useExtensionCommands } from "@/components/shared/hooks/useExtensionCommands";
 
 interface HeaderProps {
   isActive: boolean;
-  onToggle: () => void;
   statusMessage?: string;
   isSupported: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({
   isActive,
-  onToggle,
   statusMessage,
   isSupported,
 }) => {
   const statusText = isActive ? "Active" : "Inactive";
-
+  const { toggleExtension } = useExtensionCommands();
   return (
     <div className="bg-card border-b border-border px-4 py-3">
       <div className="flex items-center justify-between">
@@ -37,7 +36,7 @@ const Header: React.FC<HeaderProps> = ({
         </div>
         <Toggle
           checked={isActive}
-          onChange={onToggle}
+          onChange={toggleExtension}
           size="default"
           variant="default"
         />

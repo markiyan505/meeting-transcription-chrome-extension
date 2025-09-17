@@ -8,10 +8,10 @@ export enum Theme {
 }
 
 export type SettingsConfig = {
-  extensionActive: boolean;
+  isExtensionEnabled: boolean;
   // theme: Theme;
   // autoOpen: boolean;
-  floatPanelVisible: boolean;
+  isFloatingPanelVisible: boolean;
   maxHistorySize: number;
   // autoSave: boolean;
   // notificationSound: boolean;

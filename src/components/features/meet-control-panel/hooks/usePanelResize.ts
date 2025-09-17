@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
-import { orientationType, stateType, errorType } from "../types";
+import { orientationType } from "../types";
+import { StateType, ErrorType } from "@/types/session";
 
 const sendMessageToParent = (message: any) => {
   if (window.parent && window.parent !== window) {
@@ -11,8 +12,8 @@ interface UsePanelResizeProps {
   panelRef: React.RefObject<HTMLDivElement>;
   orientation: orientationType;
   isCollapsed: boolean;
-  state: stateType;
-  error: errorType;
+  state: StateType;
+  error: ErrorType;
 }
 
 export const usePanelResize = ({
@@ -28,8 +29,8 @@ export const usePanelResize = ({
     (
       orientation: orientationType,
       isCollapsed: boolean,
-      state: stateType,
-      error: errorType
+      state: StateType,
+      error: ErrorType
     ) => {
       let width: number;
       let height: number;

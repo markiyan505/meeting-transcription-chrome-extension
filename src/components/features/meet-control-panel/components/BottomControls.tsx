@@ -6,18 +6,19 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
-import { orientationType, stateType, errorType } from "../types";
+import { orientationType } from "../types";
 import { TooltipPosition } from "@/components/shared/hooks/useTooltipPosition";
 import { getOrientationClasses } from "../utils/getOrientationClasses";
 import { Button } from "@/components/shared/ui/button/Button";
 import { StatusIndicator } from "./StatusIndicator";
+import { ErrorType, StateType } from "@/types/session";
 
 interface BottomControlsProps {
   orientation: orientationType;
   isCollapsed: boolean;
   tooltipPosition: TooltipPosition;
-  state: stateType;
-  error: errorType;
+  state: StateType;
+  error: ErrorType;
   onOrientationToggle: () => void;
   onMinimizeToggle: () => void;
 }

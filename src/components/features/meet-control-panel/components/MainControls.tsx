@@ -1,5 +1,6 @@
 import React from "react";
-import { stateType, errorType, orientationType } from "../types";
+import { orientationType } from "../types";
+import { StateType, ErrorType } from "@/types/session";
 import { TooltipPosition } from "@/components/shared/hooks/useTooltipPosition";
 import { getOrientationClasses } from "../utils/getOrientationClasses";
 import {
@@ -13,13 +14,13 @@ import {
   DeleteButton,
 } from "./MeetControlButtons";
 
+import { useExtensionCommands } from "@/components/shared/hooks/useExtensionCommands";
+
 interface MainControlsProps {
-  state: stateType;
-  error: errorType;
+  state: StateType;
+  error: ErrorType;
   orientation: orientationType;
   tooltipPosition: TooltipPosition;
-  onStateChange: (state: stateType) => void;
-  onDeleteRecording: () => void;
 }
 
 export const MainControls: React.FC<MainControlsProps> = ({
@@ -27,10 +28,15 @@ export const MainControls: React.FC<MainControlsProps> = ({
   error,
   orientation,
   tooltipPosition,
-  onStateChange,
-  onDeleteRecording,
 }) => {
   const orientationClasses = getOrientationClasses(orientation);
+  const {
+    startRecording,
+    pauseRecording,
+    resumeRecording,
+    stopRecording,
+    deleteRecording,
+  } = useExtensionCommands();
 
   const renderErrorButton = () => {
     switch (error) {
@@ -63,24 +69,28 @@ export const MainControls: React.FC<MainControlsProps> = ({
   const renderStateButton = () => {
     switch (state) {
       case "idle":
+      case "starting":
         return (
           <StartButton
             tooltipPosition={tooltipPosition}
-            onClick={() => onStateChange("recording")}
+            // loading={state === "starting"}
+            onClick={() => startRecording()}
           />
         );
       case "paused":
+      case "resuming":
         return (
           <ResumeButton
             tooltipPosition={tooltipPosition}
-            onClick={() => onStateChange("recording")}
+            // loading={state === "resuming"}
+            onClick={() => resumeRecording()}
           />
         );
       case "recording":
         return (
           <PauseButton
             tooltipPosition={tooltipPosition}
-            onClick={() => onStateChange("paused")}
+            onClick={() => pauseRecording()}
           />
         );
       default:
@@ -95,14 +105,14 @@ export const MainControls: React.FC<MainControlsProps> = ({
       {state !== "idle" && (
         <StopButton
           tooltipPosition={tooltipPosition}
-          onClick={() => onStateChange("idle")}
+          onClick={() => stopRecording()}
         />
       )}
 
       {state !== "idle" && (
         <DeleteButton
           tooltipPosition={tooltipPosition}
-          onClick={onDeleteRecording}
+          onClick={() => deleteRecording()}
         />
       )}
     </div>

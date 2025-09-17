@@ -7,6 +7,8 @@ import {
 const config = getSupabaseConfig();
 validateSupabaseConfig();
 
+import { REFRESH_TOKEN_ALARM_NAME } from "../background";
+
 const supabase = createClient(config.url, config.anonKey);
 const AUTH_STORAGE_KEY = config.storage.sessionKey;
 
@@ -29,7 +31,7 @@ export class AuthManager {
 
   static async clearSession(): Promise<void> {
     await chrome.storage.local.remove(AUTH_STORAGE_KEY);
-    await chrome.alarms.clear("refreshTokenAlarm");
+    await chrome.alarms.clear(REFRESH_TOKEN_ALARM_NAME);
     console.log("[AuthManager] Session cleared.");
   }
 
@@ -63,7 +65,7 @@ export class AuthManager {
     );
     const refreshDelayMinutes = refreshDelaySeconds / 60;
 
-    chrome.alarms.create("refreshTokenAlarm", {
+    chrome.alarms.create(REFRESH_TOKEN_ALARM_NAME, {
       delayInMinutes: refreshDelayMinutes,
     });
     console.log(

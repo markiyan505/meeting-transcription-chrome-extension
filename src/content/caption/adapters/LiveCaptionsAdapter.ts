@@ -3,15 +3,15 @@
  * Успадковується від BaseAdapter і реалізує логіку, специфічну для Microsoft Teams.
  */
 
-import { OperationResult, TeamsConfig, CaptionEntry } from "../types";
+import {
+  OperationResult,
+  TeamsConfig,
+  CaptionEntry,
+  ChatMessage,
+} from "../types";
 import { BaseAdapter } from "./BaseAdapter";
-
-interface AttendeeEvent {
-  name: string;
-  role?: string;
-  action: "joined" | "left";
-  time: string;
-}
+import { AttendeeEvent } from "@/types/session";
+import { ErrorHandler } from "../utils/originalUtils";
 
 interface AttendeeState {
   allAttendees: Set<string>;
@@ -24,11 +24,6 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   private selectors: any;
 
   private observers: { [key: string]: MutationObserver } = {};
-
-  private cachedElements = new Map<
-    string,
-    { element: Element; timestamp: number }
-  >();
 
   private attendeeState: AttendeeState = {
     allAttendees: new Set(),
@@ -44,23 +39,19 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   }
 
   async initialize(): Promise<OperationResult> {
-    try {
-      if (!this.isTeamsPage()) {
-        return { success: false, error: "Not on a Microsoft Teams page" };
-      }
-      this.setupMeetingStateObserver();
-      await this.updateMeetingInfo();
-
-      this.isInitialized = true;
-      this.emit("initialized", { platform: "teams" });
-
-      return {
-        success: true,
-        message: "LiveCaptionsAdapter initialized successfully",
-      };
-    } catch (error) {
-      return { success: false, error: `Failed to initialize: ${error}` };
+    if (!this.isTeamsPage()) {
+      return { success: false, error: "Not on a Microsoft Teams page" };
     }
+    this.setupMeetingStateObserver();
+    // await this.updateMeetingInfo();
+
+    this.isInitialized = true;
+    this.emit("initialized", { platform: "teams" });
+
+    return {
+      success: true,
+      message: "LiveCaptionsAdapter initialized successfully",
+    };
   }
 
   async isCaptionsEnabled(): Promise<boolean> {
@@ -72,61 +63,42 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   }
 
   async enableCaptions(): Promise<OperationResult> {
-    try {
-      if (await this.isCaptionsEnabled()) {
-        return { success: true, message: "Captions are already enabled" };
-      }
-      const result = await this.attemptAutoEnableCaptions(true);
-      if (result.success) {
-        this.emit("captions_enabled", { timestamp: new Date().toISOString() });
-      }
-      return result;
-    } catch (error) {
-      this.emit("error", { context: "enable_captions", error });
-      return { success: false, error: `Failed to enable captions: ${error}` };
+    const result = await this.attemptAutoEnableCaptions(true);
+    if (result.success) {
+      this.emit("captions_enabled", { timestamp: new Date().toISOString() });
     }
+    return result;
   }
 
   async disableCaptions(): Promise<OperationResult> {
-    if (this.autoEnableInProgress) {
-      return { success: false, error: "Auto-enable is already in progress." };
+    const result = await this.attemptAutoEnableCaptions(false);
+    if (result.success) {
+      this.emit("captions_disabled", { timestamp: new Date().toISOString() });
     }
-    try {
-      if (!(await this.isCaptionsEnabled())) {
-        return { success: true, message: "Captions are already disabled" };
-      }
-      const result = await this.attemptAutoEnableCaptions(false);
-      if (result.success) {
-        this.emit("captions_disabled", { timestamp: new Date().toISOString() });
-      }
-      return result;
-    } catch (error) {
-      this.emit("error", { context: "disable_captions", error });
-      return { success: false, error: `Failed to enable captions: ${error}` };
-    }
+    return result;
   }
 
-  async isCaptionsButtonAvailable(): Promise<boolean> {
-    try {
-      const button = document.querySelector(this.selectors.captionsButton);
-      return !!button;
-    } catch (error) {
-      console.error(
-        "Error while checking if captions button is available:",
-        error
-      );
-      return false;
+  async startRecording(): Promise<OperationResult> {
+    const result = await super.startRecording();
+    if (result.success && this.config.trackAttendees) {
+      this.startAttendeeTracking();
     }
+    return result;
+  }
+
+  async stopRecording(): Promise<OperationResult> {
+    this.stopAttendeeTracking();
+    return super.stopRecording();
   }
 
   async cleanup(): Promise<OperationResult> {
+    this.stopAttendeeTracking();
     this.cleanupPlatformObservers();
     this.eventListeners.clear();
     this.cachedElements.clear();
     this.isInitialized = false;
     return { success: true, message: "Cleanup completed successfully" };
   }
-
 
   private async tryOpenParticipantPanel(): Promise<boolean> {
     if (!this.config.autoOpenAttendees) return true;
@@ -150,75 +122,119 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   }
 
   private async updateAttendees(): Promise<void> {
-    await this.tryOpenParticipantPanel();
-
     try {
+      await this.tryOpenParticipantPanel();
+
       const attendeesContainer = this.getCachedElement(
         this.selectors.attendeesContainer
       );
-      if (!attendeesContainer) return;
+      if (!attendeesContainer) {
+        this.updateAttendeesFromTranscript();
+        return;
+      }
 
-      const newAttendees = new Map<string, string>();
-      attendeesContainer
-        .querySelectorAll(this.selectors.attendeeItem)
-        .forEach((item) => {
+      const attendeeItems = attendeesContainer.querySelectorAll(
+        this.selectors.attendeeItem
+      );
+      const currentAttendees = new Map<string, string>();
+
+      attendeeItems.forEach((item) => {
+        try {
           const nameElement = item.querySelector(this.selectors.attendeeName);
           const roleElement = item.querySelector(this.selectors.attendeeRole);
+
           if (nameElement) {
-            const name = nameElement.textContent?.trim() || "Unknown";
-            const role = roleElement?.textContent?.trim() || "Attendee";
-            newAttendees.set(name, role);
+            const name =
+              nameElement.getAttribute("alt") ||
+              nameElement.textContent?.trim() ||
+              "Unknown";
+            const role = roleElement ? "Organizer" : "Participant";
+
+            currentAttendees.set(name, role);
+
+            if (!this.attendeeState.allAttendees.has(name)) {
+              this.attendeeState.allAttendees.add(name);
+              this.attendeeState.attendeeHistory.push({
+                name,
+                role,
+                action: "joined",
+                time: new Date().toLocaleTimeString(),
+              });
+            }
           }
-        });
+        } catch (error) {
+          ErrorHandler.log(error as Error, "Processing attendee item", true);
+        }
+      });
 
-      const currentTime = new Date().toISOString();
-      const previousAttendees = this.attendeeState.currentAttendees;
-
-      newAttendees.forEach((role, name) => {
-        if (!previousAttendees.has(name)) {
+      // Відстеження виходу учасників
+      for (const [name, role] of this.attendeeState.currentAttendees) {
+        if (!currentAttendees.has(name)) {
           this.attendeeState.attendeeHistory.push({
             name,
             role,
-            action: "joined",
-            time: currentTime,
-          });
-          this.attendeeState.allAttendees.add(name);
-        }
-      });
-
-      previousAttendees.forEach((role, name) => {
-        if (!newAttendees.has(name)) {
-          this.attendeeState.attendeeHistory.push({
-            name,
             action: "left",
-            time: currentTime,
+            time: new Date().toLocaleTimeString(),
           });
         }
-      });
+      }
 
-      this.attendeeState.currentAttendees = newAttendees;
+      this.attendeeState.currentAttendees = currentAttendees;
       this.meetingInfo.attendees = Array.from(this.attendeeState.allAttendees);
 
       this.emit("attendees_updated", this.attendeeState);
     } catch (error) {
-      this.emit("error", { context: "update_attendees", error });
-      console.error("Error updating attendees:", error);
+      console.warn(
+        "Failed to update attendees, falling back to transcript method:",
+        error
+      );
+      this.updateAttendeesFromTranscript();
     }
+  }
+
+  async getAttendeeReport(): Promise<any> {
+    if (!this.config.trackAttendees) {
+      return null;
+    }
+
+    return {
+      meetingStartTime: this.meetingInfo.startTime,
+      lastUpdated: new Date().toISOString(),
+      totalUniqueAttendees: this.attendeeState.allAttendees.size,
+      currentAttendeeCount: this.attendeeState.currentAttendees.size,
+      attendeeList: Array.from(this.attendeeState.allAttendees),
+      currentAttendees: Array.from(
+        this.attendeeState.currentAttendees.entries()
+      ).map(([name, role]) => ({
+        name,
+        role,
+      })),
+      attendeeHistory: this.attendeeState.attendeeHistory,
+    };
   }
 
   protected setupPlatformObservers(): void {
     this.setupCaptionObserver();
     this.setupChatObserver();
-    if (this.config.trackAttendees) {
-      this.setupAttendeeObserver();
-    }
+    // if (this.config.trackAttendees) {
+    this.setupAttendeeObserver();
+    // }
   }
+
+  private attendeeUpdateInterval: ReturnType<typeof setInterval> | null = null;
 
   protected cleanupPlatformObservers(): void {
+    if (this.autoEnableDebounceTimer) {
+      clearTimeout(this.autoEnableDebounceTimer);
+    }
+
     Object.values(this.observers).forEach((observer) => observer.disconnect());
     this.observers = {};
-  }
 
+    this.cachedElements.clear();
+
+    this.isInitialized = false;
+  }
 
   private isTeamsPage(): boolean {
     const hostname = window.location.hostname;
@@ -238,38 +254,78 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   private async attemptAutoEnableCaptions(
     enable: boolean = true
   ): Promise<OperationResult> {
+    const now = Date.now();
+
+    // Дебаунсинг для запобігання спаму кліків
+    if (now - this.autoEnableLastAttempt < this.TIMING.RETRY_DELAY) {
+      return { success: false, error: "Too soon since last attempt" };
+    }
+
+    this.autoEnableLastAttempt = now;
+
+    if (this.autoEnableInProgress) {
+      return { success: false, error: "Auto-enable already in progress" };
+    }
+
+    this.autoEnableInProgress = true;
+
     try {
       const currentlyEnabled = await this.isCaptionsEnabled();
+
       if (enable && currentlyEnabled) {
         return { success: true, message: "Captions already enabled" };
       }
+
       if (!enable && !currentlyEnabled) {
         return { success: true, message: "Captions already disabled" };
       }
 
+      // Оригінальна логіка кліків по кнопках Teams
       const moreButton = this.getCachedElement(
         this.selectors.moreButton
       ) as HTMLElement;
-      if (!moreButton)
+      if (!moreButton) {
         return { success: false, error: "More button not found" };
+      }
+
       moreButton.click();
-      await this.delay(400);
+      await this.delay(this.TIMING.BUTTON_CLICK_DELAY);
 
       const langButton = this.getCachedElement(
         this.selectors.languageSpeechButton
       ) as HTMLElement;
-      if (!langButton)
+      if (!langButton) {
         return { success: false, error: "Language button not found" };
+      }
+
       langButton.click();
-      await this.delay(400);
+      await this.delay(this.TIMING.BUTTON_CLICK_DELAY);
 
       const captionsButton = this.getCachedElement(
         this.selectors.captionsButton
       ) as HTMLElement;
-      if (!captionsButton)
+      if (!captionsButton) {
         return { success: false, error: "Captions button not found" };
+      }
+
       captionsButton.click();
-      await this.delay(400);
+      await this.delay(this.TIMING.BUTTON_CLICK_DELAY);
+
+      // Перевірка успішності
+      const finalCheck = await this.isCaptionsEnabled();
+      if (enable && !finalCheck) {
+        return {
+          success: false,
+          error: "Failed to enable captions after attempt",
+        };
+      }
+
+      if (!enable && finalCheck) {
+        return {
+          success: false,
+          error: "Failed to disable captions after attempt",
+        };
+      }
 
       return {
         success: true,
@@ -280,18 +336,26 @@ export class LiveCaptionsAdapter extends BaseAdapter {
         success: false,
         error: `Failed to auto-toggle captions: ${error}`,
       };
+    } finally {
+      this.autoEnableInProgress = false;
     }
   }
 
+  private autoEnableLastAttempt: number = 0;
+  private autoEnableDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   private setupCaptionObserver(): void {
     const container = this.getCachedElement(this.selectors.captionsContainer);
-    if (!container) {
-      console.warn("Captions container not found. Observer not set.");
-      return;
-    }
-    const observer = new MutationObserver(() => {
-      if (!this.isPaused) this.processCaptionUpdates();
-    });
+    if (!container) return;
+
+    const debouncedProcessCaptionUpdates = this.debounce(
+      this.processCaptionUpdates.bind(this),
+      300
+    );
+
+    const observer = new MutationObserver(
+      this.safeWrap(debouncedProcessCaptionUpdates, "teams_caption_observer")
+    );
     observer.observe(container, { childList: true, subtree: true });
     this.observers.captionObserver = observer;
   }
@@ -299,17 +363,82 @@ export class LiveCaptionsAdapter extends BaseAdapter {
   private setupChatObserver(): void {
     const container = this.getCachedElement(this.selectors.chatContainer);
     if (!container) return;
+
+    const debouncedProcessChatUpdates = this.debounce(
+      this.processChatUpdates.bind(this),
+      500
+    );
+
     const observer = new MutationObserver(() => {
-      if (!this.isPaused) this.processChatUpdates();
+      if (!this.isPaused) debouncedProcessChatUpdates();
     });
     observer.observe(container, { childList: true, subtree: true });
     this.observers.chatObserver = observer;
   }
 
+  private startAttendeeTracking(): void {
+    if (this.attendeeUpdateInterval) {
+      clearInterval(this.attendeeUpdateInterval);
+    }
+
+    // Початкове оновлення через 1.5 секунди
+    setTimeout(() => {
+      this.updateAttendees();
+      // Оновлення кожну хвилину
+      this.attendeeUpdateInterval = setInterval(
+        () => this.updateAttendees(),
+        60000 // 1 хвилина
+      );
+    }, 1500);
+  }
+
+  private updateAttendeesFromTranscript(): void {
+    // Fallback: витягуємо спікерів з субтитрів
+    const speakers = [
+      ...new Set(this.captions.map((caption) => caption.speaker)),
+    ];
+    const currentTime = new Date().toISOString();
+
+    speakers.forEach((name) => {
+      if (!this.attendeeState.allAttendees.has(name)) {
+        this.attendeeState.allAttendees.add(name);
+        this.attendeeState.currentAttendees.set(name, "Speaker");
+
+        this.attendeeState.attendeeHistory.push({
+          name,
+          role: "Speaker",
+          action: "joined",
+          time: currentTime,
+        });
+      }
+    });
+
+    this.meetingInfo.attendees = Array.from(this.attendeeState.allAttendees);
+    this.emit("attendees_updated", this.attendeeState);
+  }
+
+  private stopAttendeeTracking(): void {
+    if (this.attendeeUpdateInterval) {
+      clearInterval(this.attendeeUpdateInterval);
+      this.attendeeUpdateInterval = null;
+    }
+  }
+
   private setupAttendeeObserver(): void {
     const container = this.getCachedElement(this.selectors.attendeesContainer);
-    if (!container) return;
-    const observer = new MutationObserver(() => this.updateAttendees());
+    if (!container) {
+      console.warn(
+        "Attendees container not found, attendee tracking will use fallback method"
+      );
+      return;
+    }
+
+    const debouncedUpdateAttendees = this.debounce(
+      this.updateAttendees.bind(this),
+      1000
+    );
+
+    const observer = new MutationObserver(() => debouncedUpdateAttendees());
     observer.observe(container, { childList: true, subtree: true });
     this.observers.attendeeObserver = observer;
   }
@@ -362,30 +491,67 @@ export class LiveCaptionsAdapter extends BaseAdapter {
       });
   }
 
-  private processChatUpdates(): void {
-    
-  }
+  private processChatUpdates = (): void => {
+    const chatContainer = this.getCachedElement(this.selectors.chatContainer);
+    if (!chatContainer) return;
 
-  private getCachedElement(selector: string, expiry = 5000): Element | null {
-    const now = Date.now();
-    const cached = this.cachedElements.get(selector);
+    const chatElements = chatContainer.querySelectorAll(
+      this.selectors.chatMessage
+    );
 
-    if (
-      cached &&
-      now - cached.timestamp < expiry &&
-      document.body.contains(cached.element)
-    ) {
-      return cached.element;
-    }
+    chatElements.forEach((element) => {
+      try {
+        const authorElement = element.querySelector(
+          this.selectors.captionAuthor
+        );
+        const textElement = element.querySelector(this.selectors.captionText);
 
-    const element = document.querySelector(selector);
-    if (element) {
-      this.cachedElements.set(selector, { element, timestamp: now });
-    }
-    return element;
-  }
+        if (!authorElement || !textElement) return;
 
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
+        const name = authorElement.textContent?.trim() || "Unknown";
+        const text = textElement.textContent?.trim() || "";
+
+        if (text.length === 0) return;
+
+        let chatId = element.getAttribute("data-chat-id");
+        if (!chatId) {
+          chatId = `chat_${Date.now()}_${Math.random()
+            .toString(36)
+            .substring(2, 9)}`;
+          element.setAttribute("data-chat-id", chatId);
+        }
+
+        const existingIndex = this.chatMessages.findIndex(
+          (entry) => entry.id === chatId
+        );
+        const time = new Date().toISOString();
+
+        if (existingIndex !== -1) {
+          // Оновлення існуючого повідомлення чату
+          if (this.chatMessages[existingIndex].message !== text) {
+            this.chatMessages[existingIndex].message = text;
+            this.chatMessages[existingIndex].timestamp = time;
+            this.emit("chat_message_updated", this.chatMessages[existingIndex]);
+          }
+        } else {
+          // Додавання нового повідомлення чату
+          const newChatMessage: ChatMessage = {
+            id: chatId,
+            speaker: name,
+            message: text,
+            timestamp: time,
+          };
+
+          this.chatMessages.push(newChatMessage);
+          this.emit("chat_message_added", newChatMessage);
+        }
+      } catch (error) {
+        ErrorHandler.log(
+          error as Error,
+          "Processing individual chat message element",
+          true
+        );
+      }
+    });
+  };
 }

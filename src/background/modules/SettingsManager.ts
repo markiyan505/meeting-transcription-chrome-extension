@@ -11,10 +11,10 @@ export class SettingsManager {
    */
   static createDefaultSettings(): SettingsConfig {
     return {
-      extensionActive: true,
+      isExtensionEnabled: true,
       // theme: Theme.LIGHT,
       // autoOpen: true,
-      floatPanelVisible: true,
+      isFloatingPanelVisible: true,
       maxHistorySize: 50,
       // autoSave: true,
       // notificationSound: false,
@@ -113,9 +113,11 @@ export class SettingsManager {
    * Toggles the extension state
    */
   static async toggleExtensionState(): Promise<boolean> {
+    console.log("[SETTINGS MANAGER] Toggling extension state");
     const settings = await this.getSettings();
-    const newState = !settings.extensionActive;
-    await this.updateSettings({ extensionActive: newState });
+    const newState = !settings.isExtensionEnabled;
+    console.log("[SETTINGS MANAGER] New extension state:", newState);
+    await this.updateSettings({ isExtensionEnabled: newState });
     return newState;
   }
 
@@ -124,8 +126,8 @@ export class SettingsManager {
    */
   static async toggleFloatPanelVisibility(): Promise<boolean> {
     const settings = await this.getSettings();
-    const newState = !settings.floatPanelVisible;
-    await this.updateSettings({ floatPanelVisible: newState });
+    const newState = !settings.isFloatingPanelVisible;
+    await this.updateSettings({ isFloatingPanelVisible: newState });
     return newState;
   }
 }

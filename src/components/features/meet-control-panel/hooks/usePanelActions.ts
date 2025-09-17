@@ -20,24 +20,7 @@ export const usePanelActions = ({
   sendOrientationMessage,
 }: UsePanelActionsProps) => {
 
-  const {
-    startRecording,
-    stopRecording,
-    pauseRecording,
-    resumeRecording,
-    hardStopRecording,
-    isPaused, 
-  } = useCaptionStore();
   
-    const handleStateChange = useCallback((newState: stateType) => {
-    if (newState === "recording") {
-      isPaused ? resumeRecording() : startRecording();
-    } else if (newState === "paused") {
-      pauseRecording();
-    } else if (newState === "idle") {
-      stopRecording();
-    }
-  }, [isPaused, startRecording, stopRecording, pauseRecording, resumeRecording]);
 
 
   const handleOrientationToggle = useCallback(() => {
@@ -51,14 +34,8 @@ export const usePanelActions = ({
     requestAnimationFrame(() => sendResizeMessage());
   }, [isCollapsed, setIsCollapsed, sendResizeMessage]);
 
-  const handleDeleteRecording = useCallback(() => {
-    hardStopRecording();
-  }, [hardStopRecording]);
-
   return {
-    handleStateChange,
     handleOrientationToggle,
     handleMinimizeToggle,
-    handleDeleteRecording,
   };
 };

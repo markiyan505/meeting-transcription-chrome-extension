@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { MessageType } from "../../../types/messages";
 
-import { useCaptionStore } from "@/store/captionStore";
+import {
+  useCaptionStore,
+  selectIsRecording,
+  selectIsPaused,
+} from "@/store/captionStore";
 import { useSyncCaptionStore } from "@/store/useSyncCaptionStore";
 import { useAuthStore } from "@/store/AuthStore";
 import { useSyncAuthStore } from "@/store/useSyncAuthStore";
@@ -25,57 +28,25 @@ const PopupApp: React.FC = () => {
   useSyncAuthStore();
 
   const {
+    state,
+    error,
     isExtensionEnabled,
-    isInitialized,
     isInMeeting,
     isPanelVisible,
-    isRecording,
-    isPaused,
     isSupportedPlatform,
-    isError,
-
-    startRecording,
-    stopRecording,
-    pauseRecording,
-    resumeRecording,
-    hardStopRecording,
-    toggleExtension,
-    togglePanelVisibility,
   } = useCaptionStore();
 
   const {
     isAuthenticated,
-    tokenExpiry,
-    user: authUser,
-    refreshToken,
   } = useAuthStore();
-
-  // Mock extension store data
-  const isActive = true;
-  const settings = { theme: "light" as "light" | "dark" };
-  const setActive = () => {};
-  const setTheme = (theme: "light" | "dark") => {};
 
   const [activeTab, setActiveTab] = useState<TabType>("home");
   const [statusMessage, setStatusMessage] = useState<string>("");
-
-  // Set statusMessage based on isSupportedPlatform
-  useEffect(() => {
-    if (!isSupportedPlatform) {
-      setStatusMessage(
-        "This site is not supported. Please use Google Meet or Microsoft Teams."
-      );
-    } else {
-      setStatusMessage("");
-    }
-  }, [isSupportedPlatform]);
-
   // Mock data from external file
   const [records, setRecords] = useState<MockRecord[]>(mockData.records);
   const [user] = useState<MockUser>(mockData.user);
-  const [profileSettings, setProfileSettings] = useState<MockProfileSettings>({
+  const [profileSettings] = useState<MockProfileSettings>({
     ...mockData.profileSettings,
-    theme: settings.theme,
   });
   const [stats] = useState<MockStats>(mockData.stats);
 
@@ -86,11 +57,6 @@ const PopupApp: React.FC = () => {
       records.map((r) => (r.id === id ? { ...r, isSynced: true } : r))
     );
 
-  const handleSettingChange = (key: string, value: any) => {
-    setProfileSettings((prev) => ({ ...prev, [key]: value }));
-    if (key === "theme") setTheme(value);
-  };
-
   const lastRecord = records.length > 0 ? records[0] : undefined;
 
   return (
@@ -98,7 +64,6 @@ const PopupApp: React.FC = () => {
       {/* // <div className="w-full h-full bg-secondary text-foreground flex flex-col"> */}
       <Header
         isActive={isExtensionEnabled}
-        onToggle={toggleExtension}
         statusMessage={statusMessage}
         isSupported={isSupportedPlatform}
       />
@@ -106,15 +71,9 @@ const PopupApp: React.FC = () => {
       <div className="flex-1 overflow-y-auto scrollbar-thin overflow-x-hidden min-w-0">
         {activeTab === "home" && (
           <HomeTab
-            isRecording={isRecording}
-            isPaused={isPaused}
+            state={state}
+            error={error}
             isInMeeting={isInMeeting}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
-            onPauseRecording={pauseRecording}
-            onResumeRecording={resumeRecording}
-            onDeleteRecording={hardStopRecording}
-            onToggleFloatPanel={togglePanelVisibility}
             isFloatPanelVisible={isPanelVisible}
             todayRecords={stats.thisWeekRecords}
             totalTime={stats.totalTime}
@@ -135,8 +94,6 @@ const PopupApp: React.FC = () => {
             user={user}
             settings={profileSettings}
             stats={stats}
-            onSettingChange={handleSettingChange}
-            onRefreshToken={handleRefreshToken}
           />
         )}
       </div>

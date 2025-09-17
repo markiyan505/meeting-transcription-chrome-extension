@@ -14,6 +14,7 @@ import { TooltipPosition } from "@/components/shared/hooks/useTooltipPosition";
 interface ControlButtonsProps {
   tooltipPosition: TooltipPosition;
   onClick: () => void;
+  loading?: boolean;
 }
 
 interface SubtitlesButtonProps extends ControlButtonsProps {
@@ -77,14 +78,16 @@ export const IncorrectLanguageErrorButton: React.FC<ControlButtonsProps> = ({
 export const StartButton: React.FC<ControlButtonsProps> = ({
   tooltipPosition,
   onClick,
+  loading = false,
 }) => (
   <Button
     variant="primary"
-    tooltip="Start Recording"
+    tooltip={loading ? "Starting..." : "Start Recording"}
     shape="pill"
     size="default_square"
     tooltipPosition={tooltipPosition}
     onClick={onClick}
+    // loading={loading}
   >
     <Play />
   </Button>
@@ -125,14 +128,16 @@ export const StopButton: React.FC<ControlButtonsProps> = ({
 export const ResumeButton: React.FC<ControlButtonsProps> = ({
   tooltipPosition,
   onClick,
+  loading = false,
 }) => (
   <Button
     variant="primary"
-    tooltip="Resume Recording"
+    tooltip={loading ? "Resuming..." : "Resume Recording"}
     shape="pill"
     size="default_square"
     tooltipPosition={tooltipPosition}
     onClick={onClick}
+    // loading={loading}
   >
     <Play />
   </Button>

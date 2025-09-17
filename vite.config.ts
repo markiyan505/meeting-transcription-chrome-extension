@@ -47,7 +47,6 @@ export default defineConfig({
         "auth-bridge": "./src/content/auth-bridge.ts",
         floatpanel: "./src/entries/floatpanel/index.html",
         "subtitles-panel": "./src/entries/subtitles-panel/index.html",
-        dev: "./src/entries/dev/index.html",
         manifest: "./manifest.json",
       },
       output: {

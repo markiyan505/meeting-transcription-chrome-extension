@@ -1,67 +1,40 @@
 import { create } from "zustand";
-import { MessageType } from "@/types/messages";
-import { errorType } from "@/components/features/meet-control-panel/types";
 
-export interface CaptionState {
-  isInitialized: boolean;
-  isInMeeting: boolean;
-  isSupportedPlatform: boolean;
-  isExtensionEnabled: boolean;
-  isPanelVisible: boolean;
-
-  isRecording: boolean;
-  isPaused: boolean;
-  isError: errorType;
-
-  currentPlatform: string;
-}
+import type {
+  StateType,
+  PlatformType,
+  ErrorType,
+  SessionState,
+} from "@/types/session";
 
 export interface CaptionActions {
-  startRecording: () => void;
-  stopRecording: () => void;
-  pauseRecording: () => void;
-  resumeRecording: () => void;
-  hardStopRecording: () => void;
-  toggleExtension: () => void;
-  togglePanelVisibility: () => void;
-
-  _syncState: (newState: Partial<CaptionState>) => void;
+  _syncState: (newState: Partial<SessionState>) => void;
 }
 
-const initialState: CaptionState = {
+export const initialState: SessionState = {
+  state: "idle" as StateType,
   isExtensionEnabled: true,
-  isInitialized: false,
+  isInitializedAdapter: false,
   isInMeeting: false,
   isSupportedPlatform: false,
   isPanelVisible: true,
-  isRecording: false,
-  isPaused: false,
-  isError: undefined,
-  currentPlatform: "unknown",
+  error: undefined as ErrorType,
+  currentPlatform: "unknown" as PlatformType,
 };
 
-export const useCaptionStore = create<CaptionState & CaptionActions>((set) => ({
+export const useCaptionStore = create<SessionState & CaptionActions>((set) => ({
   ...initialState,
 
-  startRecording: () =>
-    chrome.runtime.sendMessage({ type: MessageType.START_CAPTION_RECORDING }),
-  stopRecording: () =>
-    chrome.runtime.sendMessage({ type: MessageType.STOP_CAPTION_RECORDING }),
-  pauseRecording: () =>
-    chrome.runtime.sendMessage({ type: MessageType.PAUSE_CAPTION_RECORDING }),
-  resumeRecording: () =>
-    chrome.runtime.sendMessage({ type: MessageType.RESUME_CAPTION_RECORDING }),
-  hardStopRecording: () =>
-    chrome.runtime.sendMessage({
-      type: MessageType.HARD_STOP_CAPTION_RECORDING,
-    }),
-
-  toggleExtension: () => {
-    chrome.runtime.sendMessage({ type: MessageType.TOGGLE_EXTENSION_STATE });
+  _syncState: (newState) => {
+    set((state) => {
+      const updatedState = { ...state, ...newState };
+      console.log("[CAPTION STORE] State updated:", updatedState);
+      return updatedState;
+    });
   },
-  togglePanelVisibility: () => {
-    chrome.runtime.sendMessage({ type: MessageType.TOGGLE_PANEL_VISIBILITY });
-  },
-
-  _syncState: (newState) => set((state) => ({ ...state, ...newState })),
 }));
+
+export const selectIsRecording = (state: SessionState) =>
+  state.state === "recording" || state.state === "paused";
+
+export const selectIsPaused = (state: SessionState) => state.state === "paused";

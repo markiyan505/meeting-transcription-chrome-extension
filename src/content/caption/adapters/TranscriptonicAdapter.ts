@@ -10,6 +10,11 @@ import {
   ChatMessage,
 } from "../types";
 import { BaseAdapter } from "./BaseAdapter";
+import {
+  selectElements,
+  waitForElement,
+  ErrorHandler,
+} from "../utils/originalUtils";
 
 export class TranscriptonicAdapter extends BaseAdapter {
   private userName: string = "You";
@@ -20,6 +25,12 @@ export class TranscriptonicAdapter extends BaseAdapter {
   private personNameBuffer = "";
   private transcriptTextBuffer = "";
   private timestampBuffer = "";
+
+  private captionIdBuffer: string = "";
+
+  private isTranscriptDomErrorCaptured = false;
+  private isChatMessagesDomErrorCaptured = false;
+  private hasMeetingEnded = false;
 
   constructor(config: GoogleMeetConfig) {
     super(config);
@@ -32,24 +43,20 @@ export class TranscriptonicAdapter extends BaseAdapter {
   }
 
   async initialize(): Promise<OperationResult> {
-    try {
-      if (!window.location.hostname.includes("meet.google.com")) {
-        return { success: false, error: "Not on a Google Meet page" };
-      }
-      this.setupMeetingStateObserver();
-      this.initializeUserName();
-      await this.updateMeetingInfo();
-
-      this.isInitialized = true;
-      this.emit("initialized", { platform: "google-meet" });
-
-      return {
-        success: true,
-        message: "TranscriptonicAdapter initialized successfully",
-      };
-    } catch (error) {
-      return { success: false, error: `Failed to initialize: ${error}` };
+    if (!window.location.hostname.includes("meet.google.com")) {
+      return { success: false, error: "Not on a Google Meet page" };
     }
+    this.setupMeetingStateObserver();
+    this.initializeUserName();
+    await this.updateMeetingInfo();
+    await this.setupMeetingEndListener();
+
+    this.emit("initialized", { platform: "google-meet" });
+
+    return {
+      success: true,
+      message: "TranscriptonicAdapter initialized successfully",
+    };
   }
 
   private async initializeUserName(): Promise<void> {
@@ -70,51 +77,36 @@ export class TranscriptonicAdapter extends BaseAdapter {
   }
 
   async isInMeeting(): Promise<boolean> {
-    const leaveButton = this.selectElementByText(
-      this.selectors.leaveButton,
-      this.selectors.leaveButtonText
-    );
-    return leaveButton !== null;
+    const path = window.location.pathname;
+    const isLanding = path.includes("/landing");
+    const hasMeetingLikePath = /\/[^/]+$/.test(path) && !isLanding;
+
+    if (!hasMeetingLikePath) return false;
+    console.log("isInMeeting", document.querySelector(this.selectors.leaveButton));
+    return document.querySelector(this.selectors.leaveButton) !== null;
   }
 
+  // async isInMeeting(): Promise<boolean> {
+  //   const leaveButton = this.selectElementByText(
+  //     this.selectors.leaveButton,
+  //     this.selectors.leaveButtonText
+  //   );
+  //   return leaveButton !== null;
+  // }
+
   async enableCaptions(): Promise<OperationResult> {
-    try {
-      if (await this.isCaptionsEnabled()) {
-        return { success: true, message: "Captions are already enabled" };
-      }
-      const button = this.selectElementByText(
-        this.selectors.captionsButton,
-        this.selectors.captionsButtonText
-      );
-      if (!button) {
-        return { success: false, error: "Captions button not found" };
-      }
-      button.click();
-      this.emit("captions_enabled", { timestamp: new Date().toISOString() });
-      return { success: true, message: "Captions enabled successfully" };
-    } catch (error) {
-      return { success: false, error: `Failed to enable captions: ${error}` };
-    }
+    const button = selectElements(
+      this.selectors.captionsButton,
+      this.selectors.captionsButtonText
+    )[0] as HTMLElement;
+    if (!button) return { success: false, error: "Captions button not found" };
+    button.click();
+    this.emit("captions_enabled", { timestamp: new Date().toISOString() });
+    return { success: true };
   }
 
   async disableCaptions(): Promise<OperationResult> {
     return this.enableCaptions();
-  }
-
-  async isCaptionsButtonAvailable(): Promise<boolean> {
-    try {
-      const button = this.selectElementByText(
-        this.selectors.captionsButton,
-        this.selectors.captionsButtonText
-      );
-      return !!button;
-    } catch (error) {
-      console.error(
-        "Error while checking if captions button is available:",
-        error
-      );
-      return false;
-    }
   }
 
   async cleanup(): Promise<OperationResult> {
@@ -143,10 +135,78 @@ export class TranscriptonicAdapter extends BaseAdapter {
     return super.pauseRecording();
   }
 
-  protected setupPlatformObservers(): void {
-    this.setupCaptionObserver();
-    this.setupChatObserver();
+  protected async setupPlatformObservers(): Promise<void> {
+    try {
+      const captionsContainer = await waitForElement(
+        this.selectors.captionsContainer
+      );
+
+      const debouncedProcessCaptionUpdates = this.debounce(
+        this.processCaptionUpdates.bind(this),
+        200
+      );
+
+      const captionsObserver = new MutationObserver(
+        this.safeWrap(debouncedProcessCaptionUpdates, "meet_captions")
+      );
+      captionsObserver.observe(captionsContainer, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+      this.observers.captions = captionsObserver;
+      await this.setupChatListener();
+    } catch (error) {
+      if (!this.isTranscriptDomErrorCaptured && !this.hasMeetingEnded) {
+        console.error("Critical error: Could not set up observers.", "error");
+        this.isTranscriptDomErrorCaptured = true;
+      }
+    }
   }
+
+  private async setupChatListener(): Promise<void> {
+    try {
+      await waitForElement(this.selectors.chatButton);
+      const chatButton = document.querySelector(
+        this.selectors.chatButton
+      ) as HTMLElement;
+      if (!chatButton) throw new Error("Chat button not found");
+
+      chatButton.click();
+      const chatContainer = await waitForElement(this.selectors.chatContainer);
+      chatButton.click();
+
+      const debouncedProcessChatUpdates = this.debounce(
+        this.processChatUpdates.bind(this),
+        500
+      );
+
+      const chatObserver = new MutationObserver(
+        this.safeWrap(debouncedProcessChatUpdates, "meet_chat")
+      );
+      chatObserver.observe(chatContainer, { childList: true, subtree: true });
+      this.observers.chat = chatObserver;
+    } catch (error) {
+      if (!this.isChatMessagesDomErrorCaptured && !this.hasMeetingEnded) {
+        console.error("Could not initialize chat capture.", "error");
+        this.isChatMessagesDomErrorCaptured = true;
+      }
+    }
+  }
+
+  private async setupMeetingEndListener(): Promise<void> {
+    const leaveButton = (await waitForElement(
+      this.selectors.leaveButton
+    )) as HTMLElement;
+    leaveButton.addEventListener("click", () => {
+      this.emit("meeting_ended", { timestamp: new Date().toISOString() });
+    });
+  }
+
+  // protected setupPlatformObservers(): void {
+  //   this.setupCaptionObserver();
+  //   this.setupChatObserver();
+  // }
 
   protected cleanupPlatformObservers(): void {
     Object.values(this.observers).forEach((observer) => observer.disconnect());
@@ -157,38 +217,38 @@ export class TranscriptonicAdapter extends BaseAdapter {
     return document.querySelector(".google-symbols") !== null ? 2 : 1;
   }
 
-    private async updateMeetingInfo(): Promise<void> {
+  private async updateMeetingInfo(): Promise<void> {
     this.meetingInfo.title =
       document.querySelector(this.selectors.meetingTitle)?.textContent ||
       document.title;
   }
 
-  private setupCaptionObserver(): void {
-    const container = document.querySelector(this.selectors.captionsContainer);
-    if (!container) {
-      console.warn("Captions container not found. Observer not set.");
-      return;
-    }
-    const observer = new MutationObserver(() => {
-      if (!this.isPaused) this.processCaptionUpdates();
-    });
-    observer.observe(container, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-    this.observers.captionObserver = observer;
-  }
+  // private setupCaptionObserver(): void {
+  //   const container = document.querySelector(this.selectors.captionsContainer);
+  //   if (!container) {
+  //     console.warn("Captions container not found. Observer not set.");
+  //     return;
+  //   }
+  //   const observer = new MutationObserver(() => {
+  //     if (!this.isPaused) this.processCaptionUpdates();
+  //   });
+  //   observer.observe(container, {
+  //     childList: true,
+  //     subtree: true,
+  //     characterData: true,
+  //   });
+  //   this.observers.captionObserver = observer;
+  // }
 
-  private setupChatObserver(): void {
-    const container = document.querySelector(this.selectors.chatContainer);
-    if (!container) return;
-    const observer = new MutationObserver(() => {
-      if (!this.isPaused) this.processChatUpdates();
-    });
-    observer.observe(container, { childList: true, subtree: true });
-    this.observers.chatObserver = observer;
-  }
+  // private setupChatObserver(): void {
+  //   const container = document.querySelector(this.selectors.chatContainer);
+  //   if (!container) return;
+  //   const observer = new MutationObserver(() => {
+  //     if (!this.isPaused) this.processChatUpdates();
+  //   });
+  //   observer.observe(container, { childList: true, subtree: true });
+  //   this.observers.chatObserver = observer;
+  // }
 
   private processCaptionUpdates(): void {
     try {
@@ -208,6 +268,8 @@ export class TranscriptonicAdapter extends BaseAdapter {
       const text = lastPersonNode.childNodes[1]?.textContent?.trim() || "";
 
       if (!text) {
+        this.pushBufferToCaptions();
+        this.clearBuffers();
         return;
       }
 
@@ -217,16 +279,39 @@ export class TranscriptonicAdapter extends BaseAdapter {
         this.transcriptTextBuffer = text;
       } else if (this.personNameBuffer !== speaker) {
         this.pushBufferToCaptions();
+        this.clearBuffers();
+
         this.personNameBuffer = speaker;
         this.timestampBuffer = new Date().toISOString();
         this.transcriptTextBuffer = text;
+        this.captionIdBuffer = `caption_${Date.now()}`;
+
+        this.emit("caption_added", {
+          id: this.captionIdBuffer,
+          speaker:
+            this.personNameBuffer === "You"
+              ? this.userName
+              : this.personNameBuffer,
+          text: this.transcriptTextBuffer,
+          timestamp: this.timestampBuffer,
+        });
       } else {
-        if (text.length - this.transcriptTextBuffer.length < -250) {
-          this.pushBufferToCaptions();
-          this.timestampBuffer = new Date().toISOString();
-        }
+        // if (text.length - this.transcriptTextBuffer.length < -250) {
+        //   this.pushBufferToCaptions();
+        //   this.timestampBuffer = new Date().toISOString();
+        // }
 
         this.transcriptTextBuffer = text;
+
+        this.emit("caption_updated", {
+          id: this.captionIdBuffer,
+          speaker:
+            this.personNameBuffer === "You"
+              ? this.userName
+              : this.personNameBuffer,
+          text: this.transcriptTextBuffer,
+          timestamp: this.timestampBuffer,
+        });
       }
     } catch (error) {
       this.emit("error", {
@@ -238,44 +323,38 @@ export class TranscriptonicAdapter extends BaseAdapter {
   }
 
   private processChatUpdates(): void {
-    try {
-      const chatContainer = document.querySelector(
-        this.selectors.chatContainer
-      );
-      if (!chatContainer || chatContainer.children.length === 0) return;
+    const chatContainer = document.querySelector(this.selectors.chatContainer);
+    if (!chatContainer || chatContainer.children.length === 0) return;
 
-      const lastMessage = chatContainer.lastChild as HTMLElement;
-      if (!lastMessage) return;
+    const lastMessage = chatContainer.lastChild as HTMLElement;
+    if (!lastMessage) return;
 
-      const speakerElement = lastMessage.querySelector("[data-sender-name]");
-      const messageElement = lastMessage.querySelector("[data-message-text]");
+    const speakerElement = lastMessage.querySelector("[data-sender-name]");
+    const messageElement = lastMessage.querySelector("[data-message-text]");
 
-      if (speakerElement && messageElement) {
-        const speaker = speakerElement.textContent?.trim() || "Unknown";
-        const message = messageElement.textContent?.trim() || "";
+    if (speakerElement && messageElement) {
+      const speaker = speakerElement.textContent?.trim() || "Unknown";
+      const message = messageElement.textContent?.trim() || "";
 
-        if (message) {
-          const isDuplicate = this.chatMessages.some(
-            (cm) =>
-              cm.speaker === speaker &&
-              message.includes(cm.message) &&
-              new Date().getTime() - new Date(cm.timestamp).getTime() < 5000 
-          );
+      if (message) {
+        const isDuplicate = this.chatMessages.some(
+          (cm) =>
+            cm.speaker === speaker &&
+            message.includes(cm.message) &&
+            new Date().getTime() - new Date(cm.timestamp).getTime() < 5000
+        );
 
-          if (!isDuplicate) {
-            const chatMessage: ChatMessage = {
-              id: `chat_${Date.now()}_${Math.random()}`,
-              speaker,
-              message,
-              timestamp: new Date().toISOString(),
-            };
-            this.chatMessages.push(chatMessage);
-            this.emit("chat_message_added", chatMessage);
-          }
+        if (!isDuplicate) {
+          const chatMessage: ChatMessage = {
+            id: `chat_${Date.now()}_${Math.random()}`,
+            speaker,
+            message,
+            timestamp: new Date().toISOString(),
+          };
+          this.chatMessages.push(chatMessage);
+          this.emit("chat_message_added", chatMessage);
         }
       }
-    } catch (error) {
-      console.error("Error processing chat updates for Google Meet:", error);
     }
   }
 
@@ -292,7 +371,11 @@ export class TranscriptonicAdapter extends BaseAdapter {
       this.captions.push(newCaption);
       this.emit("caption_added", newCaption);
     }
+    this.personNameBuffer = "";
+    this.transcriptTextBuffer = "";
+    this.timestampBuffer = "";
   }
+
   private clearBuffers(): void {
     this.personNameBuffer = "";
     this.transcriptTextBuffer = "";

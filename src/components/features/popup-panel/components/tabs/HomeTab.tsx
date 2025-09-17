@@ -9,16 +9,13 @@ import RecordingControls from "../RecordingControls";
 import StatsCard from "../Cards/StatsCard";
 import { quickStatsConfig } from "../../data/mockData";
 
+import { StateType, ErrorType } from "@/types/session";
+import { useExtensionCommands } from "@/components/shared/hooks/useExtensionCommands";
+
 interface HomeTabProps {
-  isRecording: boolean;
-  isPaused: boolean;
+  state: StateType;
+  error: ErrorType;
   isInMeeting: boolean;
-  onStartRecording: () => void;
-  onStopRecording: () => void;
-  onPauseRecording: () => void;
-  onResumeRecording: () => void;
-  onDeleteRecording: () => void;
-  onToggleFloatPanel: () => void;
   isFloatPanelVisible: boolean;
   todayRecords: number;
   totalTime: string;
@@ -26,20 +23,15 @@ interface HomeTabProps {
 }
 
 const HomeTab: React.FC<HomeTabProps> = ({
-  isRecording,
-  isPaused,
+  state,
+  error,
   isInMeeting,
-  onStartRecording,
-  onStopRecording,
-  onPauseRecording,
-  onResumeRecording,
-  onDeleteRecording,
-  onToggleFloatPanel,
   isFloatPanelVisible,
   todayRecords,
   totalTime,
   lastRecord,
 }) => {
+  const { togglePanelVisibility, toggleExtension } = useExtensionCommands();
   return (
     <div className="p-4 space-y-5 w-full">
       <div>
@@ -48,18 +40,10 @@ const HomeTab: React.FC<HomeTabProps> = ({
         </Typography>
         <div className="space-y-2">
           <div className={!isInMeeting ? "opacity-50 pointer-events-none" : ""}>
-            <RecordingControls
-              isRecording={isRecording}
-              isPaused={isPaused}
-              onStartRecording={onStartRecording}
-              onStopRecording={onStopRecording}
-              onPauseRecording={onPauseRecording}
-              onResumeRecording={onResumeRecording}
-              onDeleteRecording={onDeleteRecording}
-            />
+            <RecordingControls state={state} error={error} />
           </div>
           <Button
-            onClick={onToggleFloatPanel}
+            onClick={togglePanelVisibility}
             variant="outline"
             size="lg"
             leftIcon={<ExternalLink />}

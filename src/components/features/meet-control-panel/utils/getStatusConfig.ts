@@ -1,8 +1,9 @@
-import { stateType, errorType, StatusConfig } from "../types";
+import { ErrorType, StateType } from "@/types/session";
+import { StatusConfig } from "../types";
 
 export const getStatusConfig = (
-  state: stateType,
-  error: errorType
+  state: StateType,
+  error: ErrorType
 ): StatusConfig | null => {
   if (error) {
     return {
@@ -11,10 +12,13 @@ export const getStatusConfig = (
     };
   }
 
-  const stateConfig: Record<stateType, StatusConfig> = {
+  const stateConfig: Record<StateType, StatusConfig> = {  
     recording: { bg: "bg-red-500", title: "Recording" },
     paused: { bg: "bg-red-500 animate-pulse", title: "Paused" },
     idle: { bg: "bg-gray-400", title: "Idle" },
+    starting: { bg: "bg-yellow-500", title: "Starting" },
+    resuming: { bg: "bg-yellow-500", title: "Resuming" },
+    error: { bg: "bg-yellow-500", title: "Error" },
   };
 
   return stateConfig[state] || null;

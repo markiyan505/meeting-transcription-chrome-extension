@@ -27,16 +27,12 @@ interface ProfileTabProps {
   user: MockUser;
   settings: MockProfileSettings;
   stats: MockStats;
-  onSettingChange: (key: string, value: any) => void;
-  onRefreshToken?: () => void;
 }
 
 const ProfileTab: React.FC<ProfileTabProps> = ({
   user,
   settings,
   stats,
-  onSettingChange,
-  onRefreshToken,
 }) => {
   const { session, refreshToken, tokenExpiry, isAuthenticated } = useAuthStore();
   

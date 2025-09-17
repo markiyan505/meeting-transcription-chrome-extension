@@ -8,9 +8,9 @@ export const useSyncAuthStore = () => {
     const handleMessage = (message: any) => {
       console.log("[AUTH-SYNC] Received message:", message.type);
 
-      if (message.type === "AUTH_STATE_UPDATED") {
+      if (message.type === "EVENT.AUTH_STATE_CHANGED") {
         _setSession(message.session);
-      } else if (message.type === "AUTH_SESSION_CLEARED") {
+      } else if (message.type === "COMMAND.AUTH.CLEAR_SESSION") {
         clearSession();
       }
     };
@@ -27,7 +27,7 @@ export const useSyncAuthStore = () => {
       try {
         console.log("[AUTH-SYNC] Checking auth status...");
         const response = await chrome.runtime.sendMessage({
-          type: "GET_AUTH_STATUS",
+          type: "QUERY.AUTH.GET_STATUS",
         });
 
         if (response?.success) {

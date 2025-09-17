@@ -44,7 +44,6 @@ export class AdapterFactory {
     ) {
       return "teams";
     }
-
     return "unknown";
   }
 

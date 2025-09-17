@@ -1,11 +1,11 @@
 import React from "react";
 import { StatusIndicator as BaseStatusIndicator } from "@/components/shared/ui/status-indicator/StatusIndicator";
-import { stateType, errorType } from "../types";
+import { StateType, ErrorType } from "@/types/session";
 import { getStatusConfig } from "../utils/getStatusConfig";
 
 interface StatusIndicatorProps {
-  state: stateType;
-  error: errorType;
+  state: StateType;
+  error: ErrorType;
 }
 
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({

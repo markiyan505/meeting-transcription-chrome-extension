@@ -10,21 +10,19 @@ import { DragHandle } from "./components/DragHandle";
 import { MainControls } from "./components/MainControls";
 import { BottomControls } from "./components/BottomControls";
 
-import { useCaptionStore } from "@/store/captionStore";
 import { useSyncCaptionStore } from "@/store/useSyncCaptionStore";
-import { stateType } from "./types";
+import { StateType } from "@/types/session";
+
+import { useCaptionStore, selectIsRecording } from "@/store/captionStore";
 
 const MeetControlPanel: React.FC = () => {
   useSyncCaptionStore();
-  const { isRecording, isPaused, isError } = useCaptionStore();
+
+  const { state, error } = useCaptionStore();
+  const isRecording = useCaptionStore(selectIsRecording);
+
   const { panelOrientation, isCollapsed, setPanelOrientation, setIsCollapsed } =
     usePanelState();
-
-  const state: stateType = isRecording
-    ? isPaused
-      ? "paused"
-      : "recording"
-    : "idle";
 
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -38,7 +36,7 @@ const MeetControlPanel: React.FC = () => {
     orientation: panelOrientation,
     isCollapsed: isCollapsed,
     state: state,
-    error: isError,
+    error: error,
   });
 
   const actions = usePanelActions({
@@ -62,11 +60,9 @@ const MeetControlPanel: React.FC = () => {
         <div className="flex-1 flex items-center justify-center p-1">
           <MainControls
             state={state}
-            error={isError}
+            error={error}
             orientation={panelOrientation}
             tooltipPosition={tooltipPosition}
-            onStateChange={actions.handleStateChange}
-            onDeleteRecording={actions.handleDeleteRecording}
           />
         </div>
       )}
@@ -78,7 +74,7 @@ const MeetControlPanel: React.FC = () => {
         isCollapsed={isCollapsed}
         tooltipPosition={tooltipPosition}
         state={state}
-        error={isError}
+        error={error}
         onOrientationToggle={actions.handleOrientationToggle}
         onMinimizeToggle={actions.handleMinimizeToggle}
       />

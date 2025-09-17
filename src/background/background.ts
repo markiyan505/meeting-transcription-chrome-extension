@@ -1,380 +1,232 @@
-/**
- * Background service worker for Chrome extension
- * Main file - coordinates all modules
- */
-import { BadgeManager } from "./modules/BadgeManager";
-import { SettingsManager } from "./modules/SettingsManager";
+import { BackgroundStateService } from "./BackgroundStateService";
+
+import { callMessageHandler } from "./messageHandlers";
+import type { MessageHandlerMap } from "./messageHandlers";
+
 import { SessionManager } from "./modules/SessionManager";
-import { MessageType, MessageUtils } from "../types/messages";
-import { StateManager } from "./modules/StateManager";
-import { CaptionState } from "@/store/captionStore";
+import { SettingsManager } from "./modules/SettingsManager";
 import { ExportManager } from "./modules/ExportManager";
 import { AuthManager } from "./modules/AuthManager";
+import { requiresAuth, requiresActiveExtension } from "./messageHandlers";
 
-console.log("Background script loaded");
+import type { ChromeMessage } from "@/types/messages";
 
+const BACKUP_ALARM_NAME = "PERIODIC_BACKUP_ALARM";
+const BACKUP_INTERVAL_MIN = 0.25;
+
+export const REFRESH_TOKEN_ALARM_NAME = "REFRESH_TOKEN_ALARM";
+
+console.log("[BACKGROUND] Background script loaded");
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log("Extension installed:", details);
-  await SettingsManager.initializeSettings(details.reason);
+  console.log("[BACKGROUND] Extension installed:", details);
+  // await SettingsManager.initializeSettings(details.reason);
+  chrome.alarms.create(BACKUP_ALARM_NAME, {
+    periodInMinutes: BACKUP_INTERVAL_MIN,
+  });
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  (async () => {
-    const targetTabId = sender.tab?.id || (await getActiveTabId());
-    let response: any = { success: true };
+export const stateService = new BackgroundStateService(
+  SessionManager.saveSession
+);
 
-    try {
-      switch (message.type) {
-        case MessageType.START_CAPTION_RECORDING:
-        case MessageType.STOP_CAPTION_RECORDING:
-        case MessageType.PAUSE_CAPTION_RECORDING:
-        case MessageType.RESUME_CAPTION_RECORDING:
-        case MessageType.HARD_STOP_CAPTION_RECORDING:
-        case MessageType.HARD_STOP_CAPTION_RECORDING:
-        case MessageType.ENABLE_CAPTIONS:
-        case MessageType.DISABLE_CAPTIONS:
-          if (targetTabId) {
-            response = await chrome.tabs.sendMessage(targetTabId, message);
-          } else {
-            throw new Error(
-              "Cannot process recording command: sender tab ID is missing."
-            );
-          }
-          break;
+const messageHandlers: MessageHandlerMap = {
+  "EVENT.CONTENT.INITIALIZE": (msg, tabId) =>
+    stateService.handleContentScriptReady(tabId),
 
-        case MessageType.STATE_UPDATED:
-          if (targetTabId) {
-            await StateManager.updateState(targetTabId, message.data);
-            await broadcastStateUpdate(message.data);
-          }
-          break;
+  "EVENT.CONTENT.MEETING_STATUS_CHANGED": async (msg, tabId) =>
+    await stateService.handleMeetingStatusChanged(tabId, msg!.payload!),
 
-        case MessageType.GET_CAPTION_STATUS:
-          const sessionState = await chrome.storage.session.get(
-            "caption_session_state"
-          );
-          let state = sessionState.caption_session_state;
+  "EVENT.CONTENT.PLATFORM_INFO": (msg, tabId) =>
+    stateService.handlePlatformInfo(tabId, msg!.payload!),
 
-          if (!state) {
-            const requestingTabId = targetTabId || (await getActiveTabId());
-            state = requestingTabId
-              ? await StateManager.getState(requestingTabId)
-              : null;
-          }
+  "COMMAND.RECORDING.START": requiresActiveExtension(
+    requiresAuth((msg, tabId) => {
+      console.log("[BACKGROUND] Starting recording for tab:", tabId);
+      stateService.startRecording(tabId);
+    })
+  ),
+  "COMMAND.RECORDING.STOP": requiresActiveExtension(
+    requiresAuth((msg, tabId) => {
+      console.log("[BACKGROUND] Stopping recording for tab:", tabId);
+      stateService.stopRecording(tabId);
+    })
+  ),
+  "COMMAND.RECORDING.PAUSE": requiresActiveExtension(
+    requiresAuth((msg, tabId) => {
+      console.log("[BACKGROUND] Pausing recording for tab:", tabId);
+      stateService.pauseRecording(tabId);
+    })
+  ),
+  "COMMAND.RECORDING.RESUME": requiresActiveExtension(
+    requiresAuth((msg, tabId) => {
+      console.log("[BACKGROUND] Resuming recording for tab:", tabId);
+      stateService.resumeRecording(tabId);
+    })
+  ),
+  "COMMAND.RECORDING.DELETE": requiresActiveExtension(
+    requiresAuth((msg, tabId) => {
+      console.log("[BACKGROUND] Deleting recording for tab:", tabId);
+      stateService.deleteRecording(tabId);
+    })
+  ),
 
-          const settings = await SettingsManager.getSettings();
+  "COMMAND.PANEL.TOGGLE_VISIBILITY": (msg, tabId) => {
+    console.log("[BACKGROUND] Toggling panel visibility for tab:", tabId);
+    stateService.togglePanelVisibility(tabId, msg.payload!.isVisible);
+  },
 
-          let platformInfo = {
-            isSupportedPlatform: false,
-            currentPlatform: "unknown",
-          };
-          try {
-            const [activeTab] = await chrome.tabs.query({
-              active: true,
-              currentWindow: true,
-            });
+  "COMMAND.SESSION.UPSERT_DATA": (msg, tabId) =>
+    stateService.upsertData(tabId, msg.payload),
 
-            if (activeTab?.id) {
-              console.log(
-                "[BACKGROUND] Getting platform info from tab:",
-                activeTab.url
-              );
-              const platformResponse = await chrome.tabs.sendMessage(
-                activeTab.id,
-                {
-                  type: "GET_PLATFORM_INFO",
-                }
-              );
-              console.log(
-                "[BACKGROUND] Raw platform response:",
-                platformResponse
-              );
-              if (platformResponse && platformResponse.success) {
-                platformInfo = platformResponse;
-                console.log(
-                  "[BACKGROUND] Platform info received:",
-                  platformInfo
-                );
-              } else {
-                console.warn(
-                  "[BACKGROUND] No platform response received or failed:",
-                  platformResponse
-                );
-              }
-            } else {
-              console.warn("[BACKGROUND] No active tab found");
-            }
-          } catch (error) {
-            console.warn(
-              "Failed to get platform info from content script:",
-              error
-            );
-          }
+  "COMMAND.REPORT.RECORDING.STARTED": (msg, tabId) =>
+    stateService.handleRecordingStarted(tabId),
 
-          if (state) {
-            state.isExtensionEnabled = settings.extensionActive;
-            state.isSupportedPlatform = platformInfo.isSupportedPlatform;
-            state.currentPlatform = platformInfo.currentPlatform;
-          } else {
-            state = {
-              isInitialized: false,
-              isSupportedPlatform: platformInfo.isSupportedPlatform,
-              isInMeeting: false,
-              isRecording: false,
-              isPaused: false,
-              isExtensionEnabled: settings.extensionActive,
-              isPanelVisible: settings.floatPanelVisible,
-              currentPlatform: platformInfo.currentPlatform,
-              isError: undefined,
-            };
-          }
+  "COMMAND.REPORT.RECORDING.RESUMED": (msg, tabId) =>
+    stateService.handleRecordingResumed(tabId),
 
-          response = state;
-          break;
+  "COMMAND.REPORT.COMMAND.FAILED": (msg, tabId) =>
+    stateService.handleCommandFailed(tabId, msg.payload!),
 
-        case MessageType.SAVE_CAPTION_DATA:
-          response = await SessionManager.saveSessionData(message, sender);
-          break;
+  "QUERY.APP.GET_STATE": async (msg, tabId, sendResponse) => {
+    const state = await stateService.getAppState(tabId);
+    sendResponse(state);
+  },
 
-        case MessageType.BACKUP_CAPTION_DATA:
-          response = await SessionManager.createBackup(message, sender);
-          break;
+  "QUERY.APP.GET_HISTORY": requiresAuth(async (msg, tabId, sendResponse) => {
+    const history = await SessionManager.getSessionHistory();
+    sendResponse(history);
+  }),
 
-        case MessageType.CHECK_BACKUP_RECOVERY:
-          response = await SessionManager.checkBackupRecovery(message, sender);
-          break;
+  "COMMAND.SESSION.CLEAR_HISTORY": requiresAuth((msg, tabId) =>
+    SessionManager.clearSessionHistory()
+  ),
 
-        case MessageType.GET_CAPTION_HISTORY:
-          response = await SessionManager.getSessionHistory();
-          break;
+  "QUERY.SESSION.CHECK_BACKUP": async (msg, tabId, sendResponse) => {
+    const backup = await SessionManager.getAndPrepareBackupForUrl(
+      msg.payload.url
+    );
+    sendResponse(backup);
+  },
 
-        case MessageType.CLEAR_CAPTION_HISTORY:
-          response = await SessionManager.clearSessionHistory();
-          break;
+  "COMMAND.EXTENSION.TOGGLE_ENABLED": async (msg, tabId) => {
+    const isEnabled = await SettingsManager.toggleExtensionState();
+    stateService.updateTabSessionState(
+      tabId,
+      { isExtensionEnabled: isEnabled },
+      true
+    );
+  },
 
-        case MessageType.ADD_BACKUP_TO_HISTORY:
-          response = await SessionManager.addBackupToHistory();
-          break;
+  "COMMAND.SETTINGS.UPDATE": async (msg, tabId) => {
+    const settingsMsg = msg as Extract<
+      ChromeMessage,
+      { type: "COMMAND.SETTINGS.UPDATE" }
+    >;
+    if (settingsMsg.payload) {
+      await SettingsManager.updateSettings(settingsMsg.payload.settings);
+    }
+    // TODO: Повідомити всіх про оновлення налаштувань
+  },
 
-        case MessageType.CLEAR_CAPTION_BACKUP:
-          response = await SessionManager.clearBackup();
-          break;
+  "COMMAND.SESSION.EXPORT": requiresAuth(async (msg, tabId, sendResponse) => {
+    const exportMsg = msg as Extract<
+      ChromeMessage,
+      { type: "COMMAND.SESSION.EXPORT" }
+    >;
+    if (exportMsg.payload) {
+      const result = await ExportManager.exportSessionData(
+        exportMsg.payload.sessionId,
+        exportMsg.payload.format
+      );
+      sendResponse({ success: true, filename: result });
+    } else {
+      sendResponse({ success: false, error: "Missing payload" });
+    }
+  }),
 
-        case MessageType.CLEANUP_EMPTY_HISTORY:
-          await SessionManager.cleanupEmptyHistoryEntries();
-          break;
+  "QUERY.AUTH.GET_STATUS": async (msg, tabId, sendResponse) => {
+    const [session, isAuthenticated, tokenExpiry, user] = await Promise.all([
+      AuthManager.getSession(),
+      AuthManager.isAuthenticated(),
+      AuthManager.getTokenExpiry(),
+      AuthManager.getUser(),
+    ]);
+    sendResponse({
+      success: true,
+      isAuthenticated,
+      session,
+      tokenExpiry: tokenExpiry?.toISOString(),
+      user,
+    });
+  },
 
-        case MessageType.EXPORT_CAPTION_DATA:
-          response = await handleExportCaptionData(message);
-          break;
+  "COMMAND.AUTH.UPDATE_SESSION": (msg, tabId) => {
+    const authMsg = msg as Extract<
+      ChromeMessage,
+      { type: "COMMAND.AUTH.UPDATE_SESSION" }
+    >;
+    if (authMsg.payload && authMsg.payload.session) {
+      return AuthManager.saveSession(authMsg.payload.session);
+    }
+  },
 
-        case MessageType.UPDATE_BADGE_STATUS:
-          BadgeManager.updateRecordingStatus(targetTabId, message.isRecording);
-          break;
+  "COMMAND.AUTH.REFRESH_TOKEN": (msg, tabId) => AuthManager.refreshToken(),
 
-        case MessageType.UPDATE_SETTINGS:
-          await SettingsManager.updateSettings(message.settings);
-          break;
+  "COMMAND.AUTH.CLEAR_SESSION": (msg, tabId) => AuthManager.clearSession(),
+};
 
-        case MessageType.TOGGLE_EXTENSION_STATE:
-          console.log("[BACKGROUND] Processing TOGGLE_EXTENSION_STATE");
-          const newExtensionState =
-            await SettingsManager.toggleExtensionState();
-          console.log(
-            `[BACKGROUND] Extension state toggled to: ${newExtensionState}`
-          );
+chrome.runtime.onMessage.addListener(
+  (message: ChromeMessage, sender, sendResponse) => {
+    const isAsyncQuery = message.type.startsWith("QUERY.");
 
-          try {
-            const [activeTab] = await chrome.tabs.query({
-              active: true,
-              currentWindow: true,
-            });
+    (async () => {
+      const tabId =
+        sender.tab?.id ??
+        (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
 
-            if (activeTab?.id) {
-              await chrome.tabs.sendMessage(activeTab.id, {
-                type: MessageType.TOGGLE_EXTENSION_STATE,
-                isEnabled: newExtensionState,
-              });
-              console.log(
-                "[BACKGROUND] TOGGLE_EXTENSION_STATE sent to content script"
-              );
-            }
-          } catch (error) {
-            console.warn(
-              "Failed to send TOGGLE_EXTENSION_STATE to content script:",
-              error
-            );
-          }
-          try {
-            await chrome.runtime.sendMessage({
-              type: MessageType.TOGGLE_EXTENSION_STATE,
-              isEnabled: newExtensionState,
-            });
-            console.log(
-              "[BACKGROUND] TOGGLE_EXTENSION_STATE sent to UI components"
-            );
-          } catch (error) {
-            console.warn(
-              "Failed to send TOGGLE_EXTENSION_STATE to UI components:",
-              error
-            );
-          }
-
-          response = { success: true, isEnabled: newExtensionState };
-          break;
-
-        case MessageType.TOGGLE_PANEL_VISIBILITY:
-          console.log("[BACKGROUND] Processing TOGGLE_PANEL_VISIBILITY");
-          const isVisible = await SettingsManager.toggleFloatPanelVisibility();
-          console.log(`[BACKGROUND] Panel visibility toggled to: ${isVisible}`);
-
-          try {
-            const [activeTab] = await chrome.tabs.query({
-              active: true,
-              currentWindow: true,
-            });
-
-            if (activeTab?.id) {
-              await chrome.tabs.sendMessage(activeTab.id, {
-                type: MessageType.TOGGLE_PANEL_VISIBILITY,
-              });
-              console.log(
-                "[BACKGROUND] TOGGLE_PANEL_VISIBILITY sent to content script"
-              );
-            }
-          } catch (error) {
-            console.warn(
-              "Failed to send TOGGLE_PANEL_VISIBILITY to content script:",
-              error
-            );
-          }
-
-          response = { success: true, isVisible };
-          break;
-
-        case "GET_CURRENT_TAB":
-          const [activeTab] = await chrome.tabs.query({
-            active: true,
-            currentWindow: true,
-          });
-          response = activeTab;
-          break;
-
-        case "AUTH_SESSION_FROM_PAGE":
-          console.log("[BACKGROUND] Processing AUTH_SESSION_FROM_PAGE");
-          if (message.payload?.session) {
-            await AuthManager.saveSession(message.payload.session);
-            console.log("[BACKGROUND] Auth session saved");
-          }
-          response = { success: true };
-          break;
-
-        case "AUTH_SESSION_CLEARED":
-          console.log("[BACKGROUND] Processing AUTH_SESSION_CLEARED");
-          await AuthManager.clearSession();
-          console.log("[BACKGROUND] Auth session cleared");
-          response = { success: true };
-          break;
-
-        case "GET_AUTH_STATUS":
-          console.log("[BACKGROUND] Processing GET_AUTH_STATUS");
-          const authSession = await AuthManager.getSession();
-          const authIsAuthenticated = await AuthManager.isAuthenticated();
-          const authTokenExpiry = await AuthManager.getTokenExpiry();
-          const authUser = await AuthManager.getUser();
-
-          response = {
-            success: true,
-            isAuthenticated: authIsAuthenticated,
-            session: authSession,
-            tokenExpiry: authTokenExpiry?.toISOString(),
-            user: authUser,
-          };
-          break;
-
-        case "REFRESH_TOKEN":
-          console.log("[BACKGROUND] Processing REFRESH_TOKEN");
-          await AuthManager.refreshToken();
-          const newTokenExpiry = await AuthManager.getTokenExpiry();
-
-          response = {
-            success: true,
-            expiresAt: newTokenExpiry?.toISOString(),
-          };
-          break;
-
-        default:
-          console.warn(
-            "Unknown message type received in background:",
-            message.type
-          );
-          response = { success: false, error: "Unknown message type" };
+      if (!tabId) {
+        console.warn("[BACKGROUND] No tab ID found for message:", message.type);
+        return;
       }
 
-      sendResponse(response);
-    } catch (error) {
-      console.error(`Error handling message type "${message.type}":`, error);
-      sendResponse({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  })();
+      console.log(
+        "[BACKGROUND] Received message:",
+        message.type,
+        "from tab:",
+        tabId
+      );
 
-  return true;
-});
+      try {
+        await callMessageHandler(message, messageHandlers, tabId, sendResponse);
 
-async function broadcastStateUpdate(newState: CaptionState): Promise<void> {
-  try {
-    console.log("[BACKGROUND] Broadcasting state update:", newState);
+        if (!isAsyncQuery) {
+          // sendResponse(true);
+        }
+      } catch (error) {
+        console.error(`[BACKGROUND] Error handling "${message.type}":`, error);
 
-    await chrome.storage.session.set({
-      caption_session_state: newState,
-    });
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    })();
 
-    await chrome.runtime.sendMessage({
-      type: MessageType.STATE_UPDATED,
-      data: newState,
-    });
-
-    console.log("[BACKGROUND] State update broadcasted successfully");
-  } catch (error) {
-    console.log(
-      "Broadcast info: Could not send message to runtime listeners (e.g., popup). They might be closed."
-    );
+    return isAsyncQuery;
   }
-}
+);
 
-chrome.tabs.onRemoved.addListener((targetTabId) => {
-  StateManager.clearState(targetTabId);
+chrome.tabs.onRemoved.addListener((tabId) => {
+  stateService.handleTabRemoval(tabId);
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "refreshTokenAlarm") {
+  if (alarm.name === BACKUP_ALARM_NAME) {
+    stateService.backupActiveSessions();
+  }
+
+  if (alarm.name === REFRESH_TOKEN_ALARM_NAME) {
     console.log("[BACKGROUND] Token refresh alarm triggered");
     AuthManager.refreshToken();
   }
 });
-
-async function getActiveTabId(): Promise<number | undefined> {
-  const [activeTab] = await chrome.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
-  return activeTab?.id;
-}
-
-async function handleExportCaptionData(
-  message: any
-): Promise<{ success: boolean; filename?: string; error?: string }> {
-  const { sessionId, format = "json" } = message.data;
-
-  const sessionData = await SessionManager.getSessionDataForExport(sessionId);
-
-  if (!sessionData) {
-    throw new Error("Session data not found for export.");
-  }
-
-  const filename = await ExportManager.exportSessionData(sessionData, format);
-  return { success: true, filename };
-}
