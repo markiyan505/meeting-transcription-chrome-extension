@@ -10,7 +10,7 @@ import {
   logCaptionEvent,
   handleCaptionError,
 } from "./caption/index";
-import type { SessionState } from "@/types/session";
+import type { SessionData, SessionState } from "@/types/session";
 import { CaptionAdapter } from "./caption/types";
 import { showCaptionNotification } from "./uiNotifier";
 
@@ -332,19 +332,20 @@ async function handleResumeRecording() {
     chrome.runtime.sendMessage(report);
   } catch (error) {
     console.error("Failed to resume recording:", error);
+
+    const report: ReportCommandFailedCommand = {
+      type: "COMMAND.REPORT.COMMAND.FAILED",
+      payload: {
+        failedCommandType: "COMMAND.RECORDING.RESUME",
+        errorType: "unknown_error",
+      },
+    };
+    chrome.runtime.sendMessage(report);
   }
-  // TODO різні ерорки тре
-  const report: ReportCommandFailedCommand = {
-    type: "COMMAND.REPORT.COMMAND.FAILED",
-    payload: {
-      failedCommandType: "COMMAND.RECORDING.RESUME",
-      errorType: "unknown_error",
-    },
-  };
-  chrome.runtime.sendMessage(report);
 }
 
 let currentTabState: SessionState | null = null;
+let currentTabData: SessionData | null = null;
 
 function applyState(newState: SessionState): void {
   console.log("[CONTENT SCRIPT] Applying state:", {
@@ -402,7 +403,7 @@ export async function handleChromeMessages(
         togglePanelVisibility(false);
         break;
 
-      case "EVENT.STATE_CHANGED":
+      case "EVENT.CONTEXT_STATE_CHANGED":
         console.log(
           "[CONTENT SCRIPT] Received state change:",
           message.payload.newState
@@ -457,6 +458,9 @@ function setupCaptionEventHandlers() {
   if (!captionAdapter) return;
 
   captionAdapter.on("meeting_started", () => {
+    console.log(
+      "[CONTENT SCRIPT] Meeting started calling EVENT.CONTENT.MEETING_STATUS_CHANGED"
+    );
     chrome.runtime.sendMessage({
       type: "EVENT.CONTENT.MEETING_STATUS_CHANGED",
       payload: { isInMeeting: true },
@@ -468,6 +472,9 @@ function setupCaptionEventHandlers() {
   });
 
   captionAdapter.on("meeting_ended", () => {
+    console.log(
+      "[CONTENT SCRIPT] Meeting ended calling EVENT.CONTENT.MEETING_STATUS_CHANGED"
+    );
     chrome.runtime.sendMessage({
       type: "EVENT.CONTENT.MEETING_STATUS_CHANGED",
       payload: { isInMeeting: false },

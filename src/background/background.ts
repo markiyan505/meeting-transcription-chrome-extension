@@ -72,7 +72,7 @@ const messageHandlers: MessageHandlerMap = {
 
   "COMMAND.PANEL.TOGGLE_VISIBILITY": (msg, tabId) => {
     console.log("[BACKGROUND] Toggling panel visibility for tab:", tabId);
-    stateService.togglePanelVisibility(tabId, msg.payload!.isVisible);
+    stateService.togglePanelVisibility(tabId);
   },
 
   "COMMAND.SESSION.UPSERT_DATA": (msg, tabId) =>
@@ -88,7 +88,9 @@ const messageHandlers: MessageHandlerMap = {
     stateService.handleCommandFailed(tabId, msg.payload!),
 
   "QUERY.APP.GET_STATE": async (msg, tabId, sendResponse) => {
+    console.log("[BACKGROUND] Getting app state for tab:", tabId);
     const state = await stateService.getAppState(tabId);
+    stateService.broadcastStateToUI(state.state, tabId);
     sendResponse(state);
   },
 

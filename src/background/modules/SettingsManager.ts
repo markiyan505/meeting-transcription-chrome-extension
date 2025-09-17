@@ -11,13 +11,13 @@ export class SettingsManager {
    */
   static createDefaultSettings(): SettingsConfig {
     return {
-      isExtensionEnabled: true,
-      // theme: Theme.LIGHT,
-      // autoOpen: true,
-      isFloatingPanelVisible: true,
-      maxHistorySize: 50,
-      // autoSave: true,
-      // notificationSound: false,
+      startSessionSettings: {
+        isFloatingPanelVisible: true,
+      },
+      generalSettings: {
+        isExtensionEnabled: true,
+        maxHistorySize: 50,
+      },
     };
   }
 
@@ -115,9 +115,14 @@ export class SettingsManager {
   static async toggleExtensionState(): Promise<boolean> {
     console.log("[SETTINGS MANAGER] Toggling extension state");
     const settings = await this.getSettings();
-    const newState = !settings.isExtensionEnabled;
+    const newState = !settings.generalSettings.isExtensionEnabled;
     console.log("[SETTINGS MANAGER] New extension state:", newState);
-    await this.updateSettings({ isExtensionEnabled: newState });
+    await this.updateSettings({
+      generalSettings: {
+        isExtensionEnabled: newState,
+        maxHistorySize: settings.generalSettings.maxHistorySize,
+      },
+    });
     return newState;
   }
 
@@ -126,8 +131,10 @@ export class SettingsManager {
    */
   static async toggleFloatPanelVisibility(): Promise<boolean> {
     const settings = await this.getSettings();
-    const newState = !settings.isFloatingPanelVisible;
-    await this.updateSettings({ isFloatingPanelVisible: newState });
+    const newState = !settings.startSessionSettings.isFloatingPanelVisible;
+    await this.updateSettings({
+      startSessionSettings: { isFloatingPanelVisible: newState },
+    });
     return newState;
   }
 }

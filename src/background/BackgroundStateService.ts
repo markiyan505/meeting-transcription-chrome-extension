@@ -13,6 +13,8 @@ import type {
   UpsertSessionDataCommand,
   RecoverFromBackupCommand,
   EnablePanelVisibilityCommand,
+  ContextStateChangedEvent,
+  ContextDataChangedEvent,
 } from "@/types/messages";
 
 import {
@@ -23,7 +25,7 @@ import {
 } from "@/types/session";
 import { SettingsManager } from "./modules/SettingsManager";
 import { SessionManager } from "./modules/SessionManager";
-import { SettingsConfig } from "@/types/settings";
+import { SettingsConfig, GeneralSettings } from "@/types/settings";
 
 type SaveSessionFn = (sessionData: SessionData) => Promise<any>;
 
@@ -47,15 +49,14 @@ export class BackgroundStateService {
       ...initialData,
       sessionState: {
         ...initialData.sessionState,
-        isExtensionEnabled: settings.isExtensionEnabled,
-        isPanelVisible: settings.isFloatingPanelVisible,
+        isExtensionEnabled: settings.generalSettings.isExtensionEnabled,
       },
     };
 
     this.updateTabState(tabId, stateToInitialize);
     this.sendCommandToTab(tabId, {
       type: "COMMAND.CONTENT.ENABLE",
-      payload: { isEnabled: settings.isExtensionEnabled },
+      payload: { isEnabled: settings.generalSettings.isExtensionEnabled },
     });
   }
 
@@ -321,7 +322,7 @@ export class BackgroundStateService {
     });
   }
 
-  public togglePanelVisibility(tabId: number, isVisible: boolean): void {
+  public togglePanelVisibility(tabId: number): void {
     const state = this.getTabData(tabId);
     const newVisibility = !state.sessionState.isPanelVisible;
     console.log(
@@ -330,8 +331,8 @@ export class BackgroundStateService {
 
     this.updateTabSessionState(tabId, { isPanelVisible: newVisibility });
 
-    if (isVisible) {
-    this.sendCommandToTab<EnablePanelVisibilityCommand>(tabId, {
+    if (newVisibility) {
+      this.sendCommandToTab<EnablePanelVisibilityCommand>(tabId, {
         type: "COMMAND.PANEL.TOGGLE_ENABLED",
       });
     } else {
@@ -367,15 +368,15 @@ export class BackgroundStateService {
     });
   }
 
-  public async getAppState(
-    tabId: number
-  ): Promise<{ sessionState: SessionState; settings: SettingsConfig }> {
+  public async getAppState(tabId: number): Promise<{ state: SessionState }> {
     const tabData = this.getTabData(tabId);
     const settings = await SettingsManager.getSettings();
 
     return {
-      sessionState: tabData.sessionState,
-      settings: settings,
+      state: {
+        ...tabData.sessionState,
+        isExtensionEnabled: settings.generalSettings.isExtensionEnabled,
+      },
     };
   }
 
@@ -407,9 +408,7 @@ export class BackgroundStateService {
       console.log(
         `[StateService] Tab state changed, broadcasting for tab ${tabId}`
       );
-      this.broadcastStateChange(updatedState, tabId).catch((error) => {
-        console.warn(`[StateService] Failed to broadcast state change:`, error);
-      });
+      this.broadcastStateToContentScript(updatedState, tabId);
     } else {
       console.log(
         `[StateService] No tab state change detected for tab ${tabId}`
@@ -417,9 +416,78 @@ export class BackgroundStateService {
     }
   }
 
+  public broadcastStateToUI(newState: SessionState, sourceTabId: number): void {
+    const event: StateChangedEvent = {
+      type: "EVENT.STATE_CHANGED",
+      payload: { newState, sourceTabId },
+    };
+
+    chrome.runtime.sendMessage(event).catch((error) => {
+      if (!error.message.includes("Receiving end does not exist")) {
+        console.warn(
+          `[StateService] Помилка при трансляції стану в UI:`,
+          error
+        );
+      }
+    });
+  }
+
+  private broadcastStateToContentScript(
+    newState: SessionData,
+    sourceTabId: number
+  ): void {
+    const event: ContextDataChangedEvent = {
+      type: "EVENT.CONTEXT_DATA_CHANGED",
+      payload: { newState, sourceTabId },
+    };
+
+    console.log(
+      "[StateService] Broadcasting state to content script:",
+      sourceTabId
+    );
+
+    if (sourceTabId) {
+      chrome.tabs.sendMessage(sourceTabId, event).catch(() => {});
+    }
+  }
+
+  public async broadcastStateToAllContexts(
+    newState: Partial<GeneralSettings>,
+    sourceTabId: number
+  ): Promise<void> {
+    console.log("[StateService] Broadcasting state to all contexts.");
+    const state = this.getTabData(sourceTabId).sessionState;
+    const updatedState = { ...state, ...newState };
+
+    this.broadcastStateToUI(updatedState, sourceTabId);
+
+    try {
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (tab.id) {
+          const state = this.getTabData(tab.id).sessionState;
+          const updatedState = { ...state, ...newState };
+
+          const event: ContextStateChangedEvent = {
+            type: "EVENT.CONTEXT_STATE_CHANGED",
+            payload: { updatedState },
+          };
+
+          chrome.tabs.sendMessage(tab.id, event).catch(() => {});
+        }
+      }
+      console.log("[StateService] Broadcasted state to all contexts.");
+    } catch (error) {
+      console.error(
+        `[StateService] Failed to broadcast state change to all contexts:`,
+        error
+      );
+    }
+  }
+
   public updateTabRecordTimings(
     tabId: number,
-    newRecordTimings: Partial<RecordTimings>,
+    newRecordTimings: Partial<RecordTimings>
   ): void {
     const currentData = this.getTabData(tabId);
     const updatedData = {
@@ -429,7 +497,6 @@ export class BackgroundStateService {
 
     this.tabsSessionData.set(tabId, updatedData);
   }
-
 
   public updateTabSessionState(
     tabId: number,
@@ -454,9 +521,7 @@ export class BackgroundStateService {
       console.log(
         `[StateService] State changed, broadcasting for tab ${tabId}`
       );
-      this.broadcastStateChange(updatedData, tabId).catch((error) => {
-        console.warn(`[StateService] Failed to broadcast state change:`, error);
-      });
+      this.broadcastStateToUI(updatedData.sessionState, tabId);
     } else {
       console.log(`[StateService] No state change detected for tab ${tabId}`);
     }

@@ -39,10 +39,6 @@ export const useSyncCaptionStore = () => {
     };
 
     const handleRuntimeMessage = (message: ChromeMessage) => {
-      console.log(
-        "[SYNC-HOOK] Received message from background:",
-        message.type
-      );
       if (message.type === "EVENT.STATE_CHANGED") {
         console.log(
           "[SYNC-HOOK] Syncing state from background:",

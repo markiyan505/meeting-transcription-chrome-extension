@@ -163,6 +163,16 @@ export type StateChangedEvent = Event<
   { newState: Partial<SessionState>; sourceTabId?: number }
 >;
 
+export type ContextStateChangedEvent = Event<
+  "EVENT.CONTEXT_STATE_CHANGED",
+  { updatedState: Partial<SessionState> }
+>;
+
+export type ContextDataChangedEvent = Event<
+  "EVENT.CONTEXT_DATA_CHANGED",
+  { newState: Partial<SessionData>; sourceTabId?: number }
+>;
+
 // Authentication
 export type RefreshTokenCommand = Command<"COMMAND.AUTH.REFRESH_TOKEN">;
 export type UpdateAuthSessionCommand = Command<
@@ -222,6 +232,8 @@ export type ChromeMessage =
   // Additional commands
   // Events
   | StateChangedEvent
+  | ContextStateChangedEvent
+  | ContextDataChangedEvent
   | AuthStateChangedEvent
   | MeetingStatusChangedEvent
   | PlatformInfoEvent

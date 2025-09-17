@@ -8,11 +8,15 @@ export enum Theme {
 }
 
 export type SettingsConfig = {
-  isExtensionEnabled: boolean;
-  // theme: Theme;
-  // autoOpen: boolean;
+  startSessionSettings: StartSessionSettings;
+  generalSettings: GeneralSettings;
+};
+
+export type StartSessionSettings = {
   isFloatingPanelVisible: boolean;
+};
+
+export type GeneralSettings = {
+  isExtensionEnabled: boolean;
   maxHistorySize: number;
-  // autoSave: boolean;
-  // notificationSound: boolean;
 };

@@ -55,8 +55,8 @@ export async function callMessageHandler(
     console.warn(
       `[MESSAGE_HANDLER] No handler found for message type: "${message.type}"`
     );
-    return false;
   }
+  return false;
 }
 
 export const requiresAuth =
@@ -80,7 +80,7 @@ export const requiresActiveExtension =
   ): MessageHandler<T> =>
   async (message, tabId, sendResponse) => {
     const settings = await SettingsManager.getSettings();
-    if (!settings.isExtensionEnabled) {
+    if (!settings.generalSettings.isExtensionEnabled) {
       console.warn(
         `[SETTINGS] Action denied for "${message.type}". Extension is disabled.`
       );

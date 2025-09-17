@@ -83,7 +83,7 @@ export const sessionStateDefault: SessionState = {
   isSupportedPlatform: false,
   currentPlatform: "unknown",
   isInMeeting: false,
-  isPanelVisible: false,
+  isPanelVisible: true,
   state: "idle",
   error: undefined,
 };

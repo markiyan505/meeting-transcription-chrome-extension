@@ -149,7 +149,10 @@ export abstract class BaseAdapter implements CaptionAdapter {
   }
 
   private async handleMeetingStateChange(): Promise<void> {
+    console.log("[BaseAdapter] Handling meeting state change");
+    console.log("[BaseAdapter] wasInMeeting", this.wasInMeeting);
     const nowInMeeting = await this.isInMeeting();
+    console.log("[BaseAdapter] nowInMeeting", nowInMeeting);
 
     if (this.wasInMeeting !== nowInMeeting) {
       if (nowInMeeting) {
