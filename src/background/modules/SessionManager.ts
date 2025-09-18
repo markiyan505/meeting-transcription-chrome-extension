@@ -3,6 +3,7 @@
  */
 
 import type { SessionData, SessionState } from "../../types/session";
+import { JobManager } from "./JobManager";
 
 const CAPTION_STORAGE_KEYS = {
   HISTORY: "CAPTION_HISTORY",
@@ -20,7 +21,8 @@ export class SessionManager {
 
   static async saveSession(sessionData: SessionData): Promise<void> {
     try {
-      if (!this.hasData(sessionData)) {
+      console.log("[SessionManager] Saving session:", sessionData);
+      if (!SessionManager.hasData(sessionData)) {
         console.log(
           "[SessionManager] Skipped saving: session contains no data."
         );
@@ -47,7 +49,7 @@ export class SessionManager {
 
       const newSessionObject: any = {
         ...sessionDataWithoutState,
-        id: this.generateSessionId(),
+        id: SessionManager.generateSessionId(),
         timestamp: new Date().toISOString(),
       };
 
@@ -65,10 +67,13 @@ export class SessionManager {
       console.log(
         `[SessionManager] Session ${newSessionObject.id} saved successfully.`
       );
+
+      await JobManager.saveSession(sessionData);
     } catch (error) {
       console.error("❌ [SessionManager] Failed to save session:", error);
     }
   }
+
   static async getAndPrepareBackupForUrl(
     url: string
   ): Promise<SessionData | null> {
@@ -181,7 +186,7 @@ export class SessionManager {
       let sessionData;
 
       if (sessionId) {
-        const historyResult = await this.getSessionHistory();
+        const historyResult = await SessionManager.getSessionHistory();
         if (!historyResult.success || !historyResult.data) {
           return { success: false, error: "Failed to get history" };
         }

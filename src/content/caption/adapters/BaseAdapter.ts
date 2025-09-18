@@ -18,7 +18,7 @@ import type { MeetingMetadata } from "@/types/messages";
 import { ErrorHandler } from "../utils/originalUtils";
 
 export abstract class BaseAdapter implements CaptionAdapter {
-  protected config: AdapterConfig;
+  // protected config: AdapterConfig;
 
   protected eventListeners: Map<string, Function[]> = new Map();
   protected isInitialized = false;
@@ -37,17 +37,59 @@ export abstract class BaseAdapter implements CaptionAdapter {
     ATTENDEE_UPDATE_INTERVAL: 60000,
   };
 
-  private lastActionTimestamps = new Map<string, number>();
-  private meetingStateObserver: MutationObserver | null = null;
   protected wasInMeeting = false;
+
+  private meetingStateObserver: MutationObserver | null = null;
   private meetingStateDebounceTimer: NodeJS.Timeout | null = null;
+  private lastActionTimestamps = new Map<string, number>();
+
   protected cachedElements = new Map<
     string,
     { element: Element; timestamp: number }
   >();
 
+  emitRecordingStarted(): void {
+    this.emit("recording_started", {});
+  }
+  emitRecordingStopped(): void {
+    this.emit("recording_stopped", {});
+  }
+  emitRecordingPaused(): void {
+    this.emit("recording_paused", {});
+  }
+  emitRecordingResumed(): void {
+    this.emit("recording_resumed", {});
+  }
+  emitRecordingHardStopped(): void {
+    this.emit("recording_hard_stopped", {});
+  }
+  emitCaptionAdded(caption: CaptionEntry): void {
+    this.emit("caption_added", caption);
+  }
+  emitCaptionUpdated(caption: CaptionEntry): void {
+    this.emit("caption_updated", caption);
+  }
+  emitChatMessageAdded(msg: ChatMessage): void {
+    this.emit("chat_message_added", msg);
+  }
+  emitAttendeesUpdated(events: AttendeeEvent[]): void {
+    this.emit("attendees_updated", events);
+  }
+  emitTitleChanged(newTitle: string): void {
+    this.emit("title_changed", newTitle);
+  }
+  emitError(error: string): void {
+    this.emit("error", error);
+  }
+  emitMeetingStarted(): void {
+    this.emit("meeting_started", {});
+  }
+  emitMeetingEnded(): void {
+    this.emit("meeting_ended", {});
+  }
+
   constructor(config: AdapterConfig) {
-    this.config = config;
+    // this.config = config;
     this.meetingInfo.platform = config.platform as any;
   }
 
@@ -128,6 +170,10 @@ export abstract class BaseAdapter implements CaptionAdapter {
   protected abstract setupPlatformObservers(): void;
   protected abstract cleanupPlatformObservers(): void;
 
+  // protected abstract setupCaptionObserver(): void;
+  // protected abstract setupChatObserver(): void;
+  // protected abstract setupAttendeeObserver(): void;
+
   protected setupMeetingStateObserver(): void {
     if (this.meetingStateObserver) return;
 
@@ -150,14 +196,16 @@ export abstract class BaseAdapter implements CaptionAdapter {
 
   private async handleMeetingStateChange(): Promise<void> {
     console.log("[BaseAdapter] Handling meeting state change");
-    console.log("[BaseAdapter] wasInMeeting", this.wasInMeeting);
     const nowInMeeting = await this.isInMeeting();
-    console.log("[BaseAdapter] nowInMeeting", nowInMeeting);
+    console.log("[BaseAdapter] Now in meeting:", nowInMeeting);
 
     if (this.wasInMeeting !== nowInMeeting) {
       if (nowInMeeting) {
+        console.log("[BaseAdapter] Meeting started");
+        this.meetingInfo.startTime = new Date().toISOString();
         this.emit("meeting_started", { timestamp: this.meetingInfo.startTime });
       } else {
+        console.log("[BaseAdapter] Meeting ended");
         this.emit("meeting_ended", { timestamp: new Date().toISOString() });
       }
       this.wasInMeeting = nowInMeeting;
@@ -185,14 +233,13 @@ export abstract class BaseAdapter implements CaptionAdapter {
   //   this.emit("hydrated", { captionCount: this.captions.length });
   // }
 
-  hydrate(data: SessionData): void {
-    this.captions = data.captions || [];
-    this.chatMessages = data.chatMessages || [];
-    this.attendeeEvents = data.attendeeEvents || [];
-    this.meetingInfo = data.meetingInfo || this.meetingInfo;
-    this.emit("hydrated", { captionCount: this.captions.length });
-  }
-
+  // hydrate(data: SessionData): void {
+  //   this.captions = data.captions || [];
+  //   this.chatMessages = data.chatMessages || [];
+  //   this.attendeeEvents = data.attendeeEvents || [];
+  //   this.meetingInfo = data.meetingInfo || this.meetingInfo;
+  //   this.emit("hydrated", { captionCount: this.captions.length });
+  // }
 
   async startRecording(): Promise<OperationResult> {
     if (this.isRecording) {
@@ -275,6 +322,7 @@ export abstract class BaseAdapter implements CaptionAdapter {
     }
 
     this.isPaused = true;
+    this.cleanupPlatformObservers();
 
     this.emit("recording_paused", {});
     return { success: true, message: "Recording paused successfully" };
@@ -286,6 +334,7 @@ export abstract class BaseAdapter implements CaptionAdapter {
     }
 
     this.isPaused = false;
+    this.setupPlatformObservers();
 
     this.emit("recording_resumed", { timestamp: new Date().toISOString() });
     return { success: true, message: "Recording resumed successfully" };

@@ -49,14 +49,197 @@ export class TranscriptonicAdapter extends BaseAdapter {
     this.setupMeetingStateObserver();
     this.initializeUserName();
     await this.updateMeetingInfo();
-    await this.setupMeetingEndListener();
+    // await this.setupMeetingEndListener();
+
+    await this.checkMeetingStart();
 
     this.emit("initialized", { platform: "google-meet" });
+
+    this.checkMeetingEnd();
+
+    await this.updateMeetingTitle();
+    this.emit("meeting_info_changed", this.getMeetingInfo());
 
     return {
       success: true,
       message: "TranscriptonicAdapter initialized successfully",
     };
+  }
+
+  protected meetingTitle: string = document.title;
+  private async updateMeetingTitle(): Promise<void> {
+    try {
+      await waitForElement(".u6vdEc");
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const meetingTitleElement = document.querySelector(".u6vdEc");
+      if (meetingTitleElement?.textContent) {
+        this.meetingTitle = meetingTitleElement.textContent;
+        console.log(
+          "[TranscriptonicAdapter] Meeting title updated:",
+          this.meetingTitle
+        );
+      } else {
+        console.warn("Meeting title element not found in DOM");
+      }
+    } catch (err) {
+      console.error(
+        "[TranscriptonicAdapter] Failed to update meeting title:",
+        err
+      );
+      this.meetingTitle = document.title;
+    }
+  }
+
+  protected transcriptObserver: MutationObserver | null = null;
+  protected transcriptMutationCallback: (
+    mutationsList: MutationRecord[],
+    observer: MutationObserver
+  ) => void = () => {};
+  protected mutationConfig: MutationObserverInit = {
+    childList: true,
+    attributes: true,
+    subtree: true,
+    characterData: true,
+  };
+
+  protected setupCaptionObserver(): void {
+    waitForElement(
+      this.selectors.captionsButton,
+      this.selectors.captionsButtonText
+    ).then(() => {
+      const captionsButton = selectElements(
+        this.selectors.captionsButton,
+        this.selectors.captionsButtonText
+      )[0];
+
+      captionsButton.click();
+
+      waitForElement(this.selectors.captionsContainer)
+        .then(() => {
+          let transcriptTargetNode = document.querySelector(
+            this.selectors.captionsContainer
+          );
+          // For old captions UI
+          // if (!transcriptTargetNode) {
+          //   transcriptTargetNode = document.querySelector(".a4cQT")
+          //   canUseAriaBasedTranscriptSelector = false
+          // }
+
+          if (transcriptTargetNode) {
+            this.transcriptObserver = new MutationObserver(
+              this.transcriptMutationCallback
+            );
+            this.transcriptObserver.observe(
+              transcriptTargetNode,
+              this.mutationConfig
+            );
+          } else {
+            throw new Error("Transcript element not found in DOM");
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          this.isTranscriptDomErrorCaptured = true;
+        });
+    });
+  }
+
+  protected chatMessagesObserver: MutationObserver | null = null;
+  protected chatMessagesMutationCallback: (
+    mutationsList: MutationRecord[],
+    observer: MutationObserver
+  ) => void = () => {};
+
+  protected setupChatObserver(): void {
+    waitForElement(".google-symbols", "chat")
+      .then(() => {
+        const chatMessagesButton = selectElements(".google-symbols", "chat")[0];
+
+        chatMessagesButton.click();
+
+        waitForElement(`div[aria-live="polite"].Ge9Kpc`).then(() => {
+          chatMessagesButton.click();
+          try {
+            const chatMessagesTargetNode = document.querySelector(
+              `div[aria-live="polite"].Ge9Kpc`
+            );
+
+            if (chatMessagesTargetNode) {
+              this.chatMessagesObserver = new MutationObserver(
+                this.chatMessagesMutationCallback
+              );
+              this.chatMessagesObserver.observe(
+                chatMessagesTargetNode,
+                this.mutationConfig
+              );
+            } else {
+              throw new Error("Chat messages element not found in DOM");
+            }
+          } catch (err) {
+            console.error(err);
+            this.isChatMessagesDomErrorCaptured = true;
+          }
+        });
+      })
+      .catch((err) => {
+        console.error(err);
+        this.isChatMessagesDomErrorCaptured = true;
+      });
+  }
+
+  protected attendeesObserver: MutationObserver | null = null;
+  protected attendeesMutationCallback: (
+    mutationsList: MutationRecord[],
+    observer: MutationObserver
+  ) => void = () => {};
+
+  protected setupAttendeeObserver(): void {}
+
+  protected meetingStartObserver: MutationObserver | null = null;
+  protected meetingStartMutationCallback: (
+    mutationsList: MutationRecord[],
+    observer: MutationObserver
+  ) => void = () => {};
+
+  private meetingState: boolean = false;
+
+  protected async checkMeetingStart(): Promise<void> {
+    try {
+      await waitForElement(
+        this.selectors.leaveButton,
+        this.selectors.leaveButtonText
+      );
+      this.meetingState = true;
+      console.log("[TranscriptonicAdapter] Meeting started detected");
+    } catch (err) {
+      console.error("[TranscriptonicAdapter] Meeting start check failed:", err);
+      this.meetingState = false;
+      throw err;
+    }
+  }
+  protected checkMeetingEnd(): void {
+    try {
+      selectElements(
+        this.selectors.leaveButton,
+        this.selectors.leaveButtonText
+      )[0].parentElement.parentElement.addEventListener("click", () => {
+        this.hasMeetingEnded = true;
+        this.isInitialized = false;
+        if (this.transcriptObserver) {
+          this.transcriptObserver.disconnect();
+        }
+        if (this.chatMessagesObserver) {
+          this.chatMessagesObserver.disconnect();
+        }
+        if (this.attendeesObserver) {
+          this.attendeesObserver.disconnect();
+        }
+      });
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   private async initializeUserName(): Promise<void> {
@@ -77,13 +260,11 @@ export class TranscriptonicAdapter extends BaseAdapter {
   }
 
   async isInMeeting(): Promise<boolean> {
-    const path = window.location.pathname;
-    const isLanding = path.includes("/landing");
-    const hasMeetingLikePath = /\/[^/]+$/.test(path) && !isLanding;
+    const isFound = !!Array.from(
+      document.querySelectorAll(this.selectors.leaveButton)
+    ).find((element) => element.textContent === this.selectors.leaveButtonText);
 
-    if (!hasMeetingLikePath) return false;
-    console.log("isInMeeting", document.querySelector(this.selectors.leaveButton));
-    return document.querySelector(this.selectors.leaveButton) !== null;
+    return isFound;
   }
 
   // async isInMeeting(): Promise<boolean> {
@@ -120,18 +301,22 @@ export class TranscriptonicAdapter extends BaseAdapter {
     if (this.isRecording) {
       return { success: true, message: "Recording already started" };
     }
+
+    console.log("[TranscriptonicAdapter] Starting recording");
+    await this.updateMeetingTitle();
+    this.emit("meeting_info_changed", this.getMeetingInfo());
+
+    console.log("\n\n");
     return super.startRecording();
   }
 
   async stopRecording(): Promise<OperationResult> {
-    this.pushBufferToCaptions();
-    this.clearBuffers();
+    // this.pushBufferToCaptions();
     return super.stopRecording();
   }
 
   async pauseRecording(): Promise<OperationResult> {
-    this.pushBufferToCaptions();
-    this.clearBuffers();
+    // this.pushBufferToCaptions();
     return super.pauseRecording();
   }
 
@@ -194,14 +379,14 @@ export class TranscriptonicAdapter extends BaseAdapter {
     }
   }
 
-  private async setupMeetingEndListener(): Promise<void> {
-    const leaveButton = (await waitForElement(
-      this.selectors.leaveButton
-    )) as HTMLElement;
-    leaveButton.addEventListener("click", () => {
-      this.emit("meeting_ended", { timestamp: new Date().toISOString() });
-    });
-  }
+  // private async setupMeetingEndListener(): Promise<void> {
+  //   const leaveButton = (await waitForElement(
+  //     this.selectors.leaveButton
+  //   )) as HTMLElement;
+  //   leaveButton.addEventListener("click", () => {
+  //     this.emit("meeting_ended", { timestamp: new Date().toISOString() });
+  //   });
+  // }
 
   // protected setupPlatformObservers(): void {
   //   this.setupCaptionObserver();
@@ -257,8 +442,7 @@ export class TranscriptonicAdapter extends BaseAdapter {
       );
 
       if (!container || container.children.length <= 1) {
-        this.pushBufferToCaptions();
-        this.clearBuffers();
+        // this.pushBufferToCaptions();
         return;
       }
 
@@ -268,23 +452,29 @@ export class TranscriptonicAdapter extends BaseAdapter {
       const text = lastPersonNode.childNodes[1]?.textContent?.trim() || "";
 
       if (!text) {
-        this.pushBufferToCaptions();
-        this.clearBuffers();
+        // this.pushBufferToCaptions();
         return;
       }
 
       if (this.transcriptTextBuffer === "") {
+        console.log("[TranscriptonicAdapter] Caption buffer is empty");
         this.personNameBuffer = speaker;
         this.timestampBuffer = new Date().toISOString();
         this.transcriptTextBuffer = text;
       } else if (this.personNameBuffer !== speaker) {
-        this.pushBufferToCaptions();
-        this.clearBuffers();
+        console.log(
+          "[TranscriptonicAdapter] Person name buffer is not equal to speaker"
+        );
+        // this.pushBufferToCaptions();
 
         this.personNameBuffer = speaker;
         this.timestampBuffer = new Date().toISOString();
         this.transcriptTextBuffer = text;
-        this.captionIdBuffer = `caption_${Date.now()}`;
+        this.captionIdBuffer = `caption_${Date.now()}_${Math.random()}`;
+        console.log(
+          "[TranscriptonicAdapter] Caption ID buffer:",
+          this.captionIdBuffer
+        );
 
         this.emit("caption_added", {
           id: this.captionIdBuffer,
@@ -296,13 +486,18 @@ export class TranscriptonicAdapter extends BaseAdapter {
           timestamp: this.timestampBuffer,
         });
       } else {
+        console.log(
+          "[TranscriptonicAdapter] Person name buffer is equal to speaker"
+        );
         // if (text.length - this.transcriptTextBuffer.length < -250) {
         //   this.pushBufferToCaptions();
         //   this.timestampBuffer = new Date().toISOString();
         // }
 
         this.transcriptTextBuffer = text;
-
+        if (this.captionIdBuffer === "") {
+          this.captionIdBuffer = `caption_${Date.now()}_${Math.random()}`;
+        }
         this.emit("caption_updated", {
           id: this.captionIdBuffer,
           speaker:
@@ -312,6 +507,13 @@ export class TranscriptonicAdapter extends BaseAdapter {
           text: this.transcriptTextBuffer,
           timestamp: this.timestampBuffer,
         });
+        console.log(
+          "[TranscriptonicAdapter] Caption updated:",
+          this.captionIdBuffer,
+          this.personNameBuffer,
+          this.transcriptTextBuffer,
+          this.timestampBuffer
+        );
       }
     } catch (error) {
       this.emit("error", {
@@ -374,27 +576,5 @@ export class TranscriptonicAdapter extends BaseAdapter {
     this.personNameBuffer = "";
     this.transcriptTextBuffer = "";
     this.timestampBuffer = "";
-  }
-
-  private clearBuffers(): void {
-    this.personNameBuffer = "";
-    this.transcriptTextBuffer = "";
-    this.timestampBuffer = "";
-  }
-
-  private selectElementByText(
-    selector: string,
-    text: string
-  ): HTMLElement | null {
-    try {
-      const elements = document.querySelectorAll<HTMLElement>(selector);
-      return (
-        Array.from(elements).find((el) => el.textContent?.trim() === text) ||
-        null
-      );
-    } catch (error) {
-      console.error("Error in selectElementByText:", error);
-      return null;
-    }
   }
 }

@@ -8,15 +8,13 @@
  * @param {string} selector
  * @param {string | RegExp} text
  */
-export function selectElements(
-  selector: string,
-  text: string | RegExp
-): Element[] {
-  const elements = document.querySelectorAll(selector);
-  return Array.prototype.filter.call(elements, function (element: Element) {
-    return RegExp(text).test(element.textContent || "");
+export function selectElements(selector: string, text: string | RegExp): any {
+  var elements = document.querySelectorAll(selector);
+  return Array.prototype.filter.call(elements, function (element) {
+    return RegExp(text).test(element.textContent);
   });
 }
+
 
 /**
  * Ефективне очікування елементів з анімаційними кадрами (з оригіналу)

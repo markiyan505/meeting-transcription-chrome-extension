@@ -104,11 +104,8 @@ export type GetAppHistoryQuery = Query<
 export type ClearHistoryCommand = Command<"COMMAND.SESSION.CLEAR_HISTORY">;
 
 // Extension & UI Control
-export type ToggleExtensionEnabledCommand = Command<
-  "COMMAND.EXTENSION.TOGGLE_ENABLED"
->;
-
-
+// export type ToggleExtensionEnabledCommand =
+//   Command<"COMMAND.EXTENSION.TOGGLE_ENABLED">;
 
 export type TogglePanelVisibilityCommand = Command<
   "COMMAND.PANEL.TOGGLE_VISIBILITY",
@@ -152,6 +149,24 @@ export type PlatformInfoEvent = Command<
   { isSupported: boolean; platform: PlatformType }
 >;
 
+export type AuthStateChangedEvent = Event<
+  "EVENT.AUTH.STATE_CHANGED",
+  {
+    timestamp: number;
+    hasSession: boolean;
+    session: any;
+  }
+>;
+
+export type UserProfileChangedEvent = Event<
+  "EVENT.USER.PROFILE_CHANGED",
+  {
+    timestamp: number;
+    hasProfile: boolean;
+    profile: any;
+  }
+>;
+
 /** Requests the entire state for UI initialization. */
 export type GetAppStateQuery = Query<
   "QUERY.APP.GET_STATE",
@@ -180,6 +195,10 @@ export type UpdateAuthSessionCommand = Command<
   { session: Session | null }
 >;
 export type ClearAuthSessionCommand = Command<"COMMAND.AUTH.CLEAR_SESSION">;
+
+// User Profile Commands
+export type RefreshUserProfileCommand = Command<"COMMAND.USER.REFRESH_PROFILE">;
+export type ClearUserCacheCommand = Command<"COMMAND.USER.CLEAR_CACHE">;
 /** Requests the current authentication status. */
 export type GetAuthStatusQuery = Query<
   "QUERY.AUTH.GET_STATUS",
@@ -191,12 +210,54 @@ export type GetAuthStatusQuery = Query<
   }
 >;
 
-/** Fired when authentication state changes. */
-export type AuthStateChangedEvent = Event<
-  "EVENT.AUTH_STATE_CHANGED",
+// User Profile Queries
+export type GetUserProfileQuery = Query<
+  "QUERY.USER.GET_PROFILE",
+  void,
   {
-    isAuthenticated: boolean;
-    session: Session | null;
+    success: boolean;
+    profile: {
+      id: string;
+      first_name: string;
+      last_name: string;
+      email: string;
+      role: string;
+      avatar_url: string;
+      created_at?: string;
+      updated_at?: string;
+    } | null;
+  }
+>;
+
+export type GetCachedUserProfileQuery = Query<
+  "QUERY.USER.GET_CACHED_PROFILE",
+  void,
+  {
+    success: boolean;
+    profile: {
+      id: string;
+      first_name: string;
+      last_name: string;
+      email: string;
+      role: string;
+      avatar_url: string;
+      created_at?: string;
+      updated_at?: string;
+    } | null;
+  }
+>;
+
+export type GetCacheInfoQuery = Query<
+  "QUERY.USER.GET_CACHE_INFO",
+  void,
+  {
+    success: boolean;
+    cacheInfo: {
+      hasCache: boolean;
+      cachedAt?: number;
+      isExpired: boolean;
+      ageMinutes?: number;
+    };
   }
 >;
 
@@ -215,7 +276,7 @@ export type ChromeMessage =
   | SaveSessionDataCommand
   | ExportSessionCommand
   | ClearHistoryCommand
-  | ToggleExtensionEnabledCommand
+  // | ToggleExtensionEnabledCommand
   | TogglePanelVisibilityCommand
   | EnablePanelVisibilityCommand
   | DisablePanelVisibilityCommand
@@ -223,6 +284,8 @@ export type ChromeMessage =
   | RefreshTokenCommand
   | UpdateAuthSessionCommand
   | ClearAuthSessionCommand
+  | RefreshUserProfileCommand
+  | ClearUserCacheCommand
   | ReportRecordingStartedCommand
   | ReportRecordingResumedCommand
   | ReportCommandFailedCommand
@@ -237,10 +300,14 @@ export type ChromeMessage =
   | AuthStateChangedEvent
   | MeetingStatusChangedEvent
   | PlatformInfoEvent
+  | UserProfileChangedEvent
   | EnableContentScriptCommand
   | RecoverFromBackupCommand
   // Queries
   | GetAppStateQuery
   | GetAppHistoryQuery
   | GetAuthStatusQuery
+  | GetUserProfileQuery
+  | GetCachedUserProfileQuery
+  | GetCacheInfoQuery
   | CheckBackupRecoveryQuery;

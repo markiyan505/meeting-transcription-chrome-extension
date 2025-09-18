@@ -112,19 +112,19 @@ export class SettingsManager {
   /**
    * Toggles the extension state
    */
-  static async toggleExtensionState(): Promise<boolean> {
-    console.log("[SETTINGS MANAGER] Toggling extension state");
-    const settings = await this.getSettings();
-    const newState = !settings.generalSettings.isExtensionEnabled;
-    console.log("[SETTINGS MANAGER] New extension state:", newState);
-    await this.updateSettings({
-      generalSettings: {
-        isExtensionEnabled: newState,
-        maxHistorySize: settings.generalSettings.maxHistorySize,
-      },
-    });
-    return newState;
-  }
+  // static async toggleExtensionState(): Promise<boolean> {
+  //   console.log("[SETTINGS MANAGER] Toggling extension state");
+  //   const settings = await this.getSettings();
+  //   const newState = !settings.generalSettings.isExtensionEnabled;
+  //   console.log("[SETTINGS MANAGER] New extension state:", newState);
+  //   await this.updateSettings({
+  //     generalSettings: {
+  //       isExtensionEnabled: newState,
+  //       maxHistorySize: settings.generalSettings.maxHistorySize,
+  //     },
+  //   });
+  //   return newState;
+  // }
 
   /**
    * Toggles the visibility of the panel

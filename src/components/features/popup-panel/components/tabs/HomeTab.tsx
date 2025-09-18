@@ -31,7 +31,7 @@ const HomeTab: React.FC<HomeTabProps> = ({
   totalTime,
   lastRecord,
 }) => {
-  const { togglePanelVisibility, toggleExtension } = useExtensionCommands();
+  const { togglePanelVisibility } = useExtensionCommands();
   return (
     <div className="p-4 space-y-5 w-full">
       <div>

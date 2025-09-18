@@ -18,7 +18,7 @@ const Header: React.FC<HeaderProps> = ({
   isSupported,
 }) => {
   const statusText = isActive ? "Active" : "Inactive";
-  const { toggleExtension } = useExtensionCommands();
+  // const { toggleExtension } = useExtensionCommands();
   return (
     <div className="bg-card border-b border-border px-4 py-3">
       <div className="flex items-center justify-between">
@@ -34,12 +34,12 @@ const Header: React.FC<HeaderProps> = ({
             Caption Recorder
           </Typography>
         </div>
-        <Toggle
+        {/* <Toggle
           checked={isActive}
-          onChange={toggleExtension}
+          // onChange={toggleExtension}
           size="default"
           variant="default"
-        />
+        /> */}
       </div>
 
       <div className="mt-2 flex items-center justify-between mb-2">

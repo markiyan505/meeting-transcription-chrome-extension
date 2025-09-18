@@ -31,7 +31,12 @@
       "run_at": "document_end"
     },
     {
-      "matches": ["http://localhost:3000/*"],
+      "matches": [
+        "*://meet.google.com/*",
+        "*://teams.microsoft.com/*",
+        "*://teams.live.com/*",
+        "http://localhost:3000/*"
+      ],
       "js": ["auth-bridge.js"],
       "run_at": "document_start"
     }

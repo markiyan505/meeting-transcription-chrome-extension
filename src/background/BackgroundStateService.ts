@@ -25,7 +25,7 @@ import {
 } from "@/types/session";
 import { SettingsManager } from "./modules/SettingsManager";
 import { SessionManager } from "./modules/SessionManager";
-import { SettingsConfig, GeneralSettings } from "@/types/settings";
+// import { SettingsConfig, GeneralSettings } from "@/types/settings";
 
 type SaveSessionFn = (sessionData: SessionData) => Promise<any>;
 
@@ -42,25 +42,31 @@ export class BackgroundStateService {
 
   public async handleContentScriptReady(tabId: number): Promise<void> {
     console.log(`[StateService] Content script ready for tab ${tabId}`);
-    const settings = await SettingsManager.getSettings();
+    // const settings = await SettingsManager.getSettings();
     const initialData = this.getTabData(tabId);
 
     const stateToInitialize: Partial<SessionData> = {
       ...initialData,
       sessionState: {
         ...initialData.sessionState,
-        isExtensionEnabled: settings.generalSettings.isExtensionEnabled,
+        isExtensionEnabled: true,
+        // isExtensionEnabled: settings.generalSettings.isExtensionEnabled,
       },
     };
 
-    this.updateTabState(tabId, stateToInitialize);
+    // this.updateTabState(tabId, stateToInitialize);
     this.sendCommandToTab(tabId, {
       type: "COMMAND.CONTENT.ENABLE",
-      payload: { isEnabled: settings.generalSettings.isExtensionEnabled },
+      // payload: { isEnabled: settings.generalSettings.isExtensionEnabled },
+      payload: { isEnabled: true },
     });
   }
 
   public handleUnexpectedRecordEnding(tabId: number): void {
+    console.log(
+      "[StateService] Handling unexpected record ending for tab:",
+      tabId
+    );
     const data = this.tabsSessionData.get(tabId);
     const state = data?.sessionState;
     if (!state) return;
@@ -88,7 +94,7 @@ export class BackgroundStateService {
 
     if (payload.isInMeeting) {
       // При початку зустрічі перевіряємо backup
-      await this.checkAndRecoverBackup(tabId);
+      // await this.checkAndRecoverBackup(tabId);
     } else {
       this.handleUnexpectedRecordEnding(tabId);
     }
@@ -96,30 +102,30 @@ export class BackgroundStateService {
     this.updateTabSessionState(tabId, { isInMeeting: payload.isInMeeting });
   }
 
-  private async checkAndRecoverBackup(tabId: number): Promise<void> {
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      const recoveredState = await SessionManager.getAndPrepareBackupForUrl(
-        tab.url || ""
-      );
+  // private async checkAndRecoverBackup(tabId: number): Promise<void> {
+  //   try {
+  //     const tab = await chrome.tabs.get(tabId);
+  //     const recoveredState = await SessionManager.getAndPrepareBackupForUrl(
+  //       tab.url || ""
+  //     );
 
-      if (recoveredState) {
-        console.log(`[StateService] Recovering backup state for tab ${tabId}`);
+  //     if (recoveredState) {
+  //       console.log(`[StateService] Recovering backup state for tab ${tabId}`);
 
-        this.tabsSessionData.set(tabId, recoveredState);
+  //       this.tabsSessionData.set(tabId, recoveredState);
 
-        this.sendCommandToTab<RecoverFromBackupCommand>(tabId, {
-          type: "COMMAND.CONTENT.RECOVER_FROM_BACKUP",
-          payload: { recoveredState },
-        });
-      }
-    } catch (error) {
-      console.error(
-        `[StateService] Failed to check backup for tab ${tabId}:`,
-        error
-      );
-    }
-  }
+  //       this.sendCommandToTab<RecoverFromBackupCommand>(tabId, {
+  //         type: "COMMAND.CONTENT.RECOVER_FROM_BACKUP",
+  //         payload: { recoveredState },
+  //       });
+  //     }
+  //   } catch (error) {
+  //     console.error(
+  //       `[StateService] Failed to check backup for tab ${tabId}:`,
+  //       error
+  //     );
+  //   }
+  // }
 
   public handlePlatformInfo(
     tabId: number,
@@ -171,6 +177,7 @@ export class BackgroundStateService {
     }
 
     if (hasActiveSessions) {
+      console.log("[StateService] Active sessions found, saving to storage");
       await chrome.storage.local.set({
         [ACTIVE_SESSIONS_BACKUP_KEY]: activeSessions,
       });
@@ -248,6 +255,7 @@ export class BackgroundStateService {
     });
 
     const finalSessionData = this.getTabData(tabId);
+    console.log("[StateService] Final session data:", finalSessionData);
     this.saveSession(finalSessionData).catch((err) =>
       console.error(
         `[StateService] Session saving failed for tab ${tabId}:`,
@@ -259,12 +267,12 @@ export class BackgroundStateService {
       state: "idle",
       error: undefined,
     });
-    this.updateTabState(tabId, {
-      captions: [],
-      chatMessages: [],
-      attendeeEvents: [],
-      recordTimings: {},
-    });
+    // this.updateTabState(tabId, {
+    //   captions: [],
+    //   chatMessages: [],
+    //   attendeeEvents: [],
+    //   recordTimings: {},
+    // });
 
     this.sendCommandToTab<StopRecordingCommand>(tabId, {
       type: "COMMAND.RECORDING.STOP",
@@ -310,12 +318,12 @@ export class BackgroundStateService {
       state: "idle",
       error: undefined,
     });
-    this.updateTabState(tabId, {
-      captions: [],
-      chatMessages: [],
-      attendeeEvents: [],
-      recordTimings: {},
-    });
+    // this.updateTabState(tabId, {
+    //   captions: [],
+    //   chatMessages: [],
+    //   attendeeEvents: [],
+    //   recordTimings: {},
+    // });
 
     this.sendCommandToTab<DeleteRecordingCommand>(tabId, {
       type: "COMMAND.RECORDING.DELETE",
@@ -346,6 +354,7 @@ export class BackgroundStateService {
     tabId: number,
     payload: UpsertSessionDataCommand["payload"]
   ): void {
+    console.log("[StateService] Upserting data:", payload);
     if (!payload) return;
 
     const state = this.getTabData(tabId);
@@ -366,6 +375,11 @@ export class BackgroundStateService {
       ],
       meetingInfo: { ...state.meetingInfo, ...payload.meetingInfo },
     });
+
+    console.log(
+      "[StateService] Data upserted captions:",
+      this.tabsSessionData.get(tabId)?.captions
+    );
   }
 
   public async getAppState(tabId: number): Promise<{ state: SessionState }> {
@@ -375,7 +389,8 @@ export class BackgroundStateService {
     return {
       state: {
         ...tabData.sessionState,
-        isExtensionEnabled: settings.generalSettings.isExtensionEnabled,
+        // isExtensionEnabled: settings.generalSettings.isExtensionEnabled,
+        isExtensionEnabled: true,
       },
     };
   }
@@ -388,33 +403,33 @@ export class BackgroundStateService {
     return this.getTabData(tabId).sessionState;
   }
 
-  public updateTabState(
-    tabId: number,
-    newState: Partial<SessionData>,
-    forceBroadcast: boolean = false
-  ): void {
-    const currentState = this.getTabData(tabId);
-    const updatedState = { ...currentState, ...newState };
+  // public updateTabState(
+  //   tabId: number,
+  //   newState: Partial<SessionData>,
+  //   forceBroadcast: boolean = false
+  // ): void {
+  //   const currentState = this.getTabData(tabId);
+  //   const updatedState = { ...currentState, ...newState };
 
-    console.log(
-      `[StateService] Updating tab state for tab ${tabId}:`,
-      newState
-    );
+  //   console.log(
+  //     `[StateService] Updating tab state for tab ${tabId}:`,
+  //     newState
+  //   );
 
-    const hasStateChanged = this.hasStateChanged(currentState, updatedState);
-    this.tabsSessionData.set(tabId, updatedState);
+  //   const hasStateChanged = this.hasStateChanged(currentState, updatedState);
+  //   this.tabsSessionData.set(tabId, updatedState);
 
-    if (hasStateChanged || forceBroadcast) {
-      console.log(
-        `[StateService] Tab state changed, broadcasting for tab ${tabId}`
-      );
-      this.broadcastStateToContentScript(updatedState, tabId);
-    } else {
-      console.log(
-        `[StateService] No tab state change detected for tab ${tabId}`
-      );
-    }
-  }
+  //   if (hasStateChanged || forceBroadcast) {
+  //     console.log(
+  //       `[StateService] Tab state changed, broadcasting for tab ${tabId}`
+  //     );
+  //     this.broadcastStateToContentScript(updatedState, tabId);
+  //   } else {
+  //     console.log(
+  //       `[StateService] No tab state change detected for tab ${tabId}`
+  //     );
+  //   }
+  // }
 
   public broadcastStateToUI(newState: SessionState, sourceTabId: number): void {
     const event: StateChangedEvent = {
@@ -432,58 +447,58 @@ export class BackgroundStateService {
     });
   }
 
-  private broadcastStateToContentScript(
-    newState: SessionData,
-    sourceTabId: number
-  ): void {
-    const event: ContextDataChangedEvent = {
-      type: "EVENT.CONTEXT_DATA_CHANGED",
-      payload: { newState, sourceTabId },
-    };
+  // private broadcastStateToContentScript(
+  //   newState: SessionData,
+  //   sourceTabId: number
+  // ): void {
+  //   const event: ContextDataChangedEvent = {
+  //     type: "EVENT.CONTEXT_DATA_CHANGED",
+  //     payload: { newState, sourceTabId },
+  //   };
 
-    console.log(
-      "[StateService] Broadcasting state to content script:",
-      sourceTabId
-    );
+  //   console.log(
+  //     "[StateService] Broadcasting state to content script:",
+  //     sourceTabId
+  //   );
 
-    if (sourceTabId) {
-      chrome.tabs.sendMessage(sourceTabId, event).catch(() => {});
-    }
-  }
+  //   if (sourceTabId) {
+  //     chrome.tabs.sendMessage(sourceTabId, event).catch(() => {});
+  //   }
+  // }
 
-  public async broadcastStateToAllContexts(
-    newState: Partial<GeneralSettings>,
-    sourceTabId: number
-  ): Promise<void> {
-    console.log("[StateService] Broadcasting state to all contexts.");
-    const state = this.getTabData(sourceTabId).sessionState;
-    const updatedState = { ...state, ...newState };
+  // public async broadcastStateToAllContexts(
+  //   newState: Partial<GeneralSettings>,
+  //   sourceTabId: number
+  // ): Promise<void> {
+  //   console.log("[StateService] Broadcasting state to all contexts.");
+  //   const state = this.getTabData(sourceTabId).sessionState;
+  //   const updatedState = { ...state, ...newState };
 
-    this.broadcastStateToUI(updatedState, sourceTabId);
+  //   this.broadcastStateToUI(updatedState, sourceTabId);
 
-    try {
-      const tabs = await chrome.tabs.query({});
-      for (const tab of tabs) {
-        if (tab.id) {
-          const state = this.getTabData(tab.id).sessionState;
-          const updatedState = { ...state, ...newState };
+  //   try {
+  //     const tabs = await chrome.tabs.query({});
+  //     for (const tab of tabs) {
+  //       if (tab.id) {
+  //         const state = this.getTabData(tab.id).sessionState;
+  //         const updatedState = { ...state, ...newState };
 
-          const event: ContextStateChangedEvent = {
-            type: "EVENT.CONTEXT_STATE_CHANGED",
-            payload: { updatedState },
-          };
+  //         const event: ContextStateChangedEvent = {
+  //           type: "EVENT.CONTEXT_STATE_CHANGED",
+  //           payload: { updatedState },
+  //         };
 
-          chrome.tabs.sendMessage(tab.id, event).catch(() => {});
-        }
-      }
-      console.log("[StateService] Broadcasted state to all contexts.");
-    } catch (error) {
-      console.error(
-        `[StateService] Failed to broadcast state change to all contexts:`,
-        error
-      );
-    }
-  }
+  //         chrome.tabs.sendMessage(tab.id, event).catch(() => {});
+  //       }
+  //     }
+  //     console.log("[StateService] Broadcasted state to all contexts.");
+  //   } catch (error) {
+  //     console.error(
+  //       `[StateService] Failed to broadcast state change to all contexts:`,
+  //       error
+  //     );
+  //   }
+  // }
 
   public updateTabRecordTimings(
     tabId: number,
@@ -552,11 +567,24 @@ export class BackgroundStateService {
     tabId: number,
     command: T
   ): void {
-    chrome.tabs.sendMessage(tabId, command).catch((error) => {
-      console.warn(
-        `[StateService] Failed to send command to tab ${tabId}:`,
-        error
-      );
-    });
+    console.log(
+      `[StateService] Sending command to tab ${tabId}:`,
+      command.type
+    );
+
+    chrome.tabs
+      .sendMessage(tabId, command)
+      .then((response) => {
+        console.log(
+          `[StateService] Command response from tab ${tabId}:`,
+          response
+        );
+      })
+      .catch((error) => {
+        console.warn(
+          `[StateService] Failed to send command to tab ${tabId}:`,
+          error
+        );
+      });
   }
 }

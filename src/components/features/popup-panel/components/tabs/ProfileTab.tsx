@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   User,
+  RefreshCw,
   // Download,
   // Zap,
   // Shield,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { Typography } from "@/components/shared/ui/typography";
 import { Panel } from "@/components/shared/ui/panel/Panel";
+import { Button } from "@/components/shared/ui/button/Button";
 import TokenStatus from "../TokenStatus";
 import { Icon } from "@/components/shared/ui/icon/Icon";
 import {
@@ -21,6 +23,8 @@ import {
   platformCardsConfig,
 } from "../../data/mockData";
 import { useAuthStore } from "@/store/AuthStore";
+import { useUserProfileStore } from "@/store/useUserProfile";
+import CacheInfo from "../CacheInfo";
 // import SettingItem from "./SettingItem";
 
 interface ProfileTabProps {
@@ -29,13 +33,20 @@ interface ProfileTabProps {
   stats: MockStats;
 }
 
-const ProfileTab: React.FC<ProfileTabProps> = ({
-  user,
-  settings,
-  stats,
-}) => {
-  const { session, refreshToken, tokenExpiry, isAuthenticated } = useAuthStore();
-  
+const ProfileTab: React.FC<ProfileTabProps> = ({ user, settings, stats }) => {
+  const { session, refreshToken, tokenExpiry, isAuthenticated } =
+    useAuthStore();
+  const { profile, isLoading, error, fetchProfile, refreshProfile } =
+    useUserProfileStore();
+
+  // Завантажуємо профіль при ініціалізації (тільки один раз)
+  useEffect(() => {
+    if (isAuthenticated && !profile && !isLoading) {
+      console.log("[ProfileTab] Fetching profile on mount");
+      fetchProfile();
+    }
+  }, [isAuthenticated]); // Видалили fetchProfile з dependencies
+
   // Use configurations from mockData
   const statisticsCards = statisticsCardsConfig.map((card) => ({
     ...card,
@@ -76,26 +87,140 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
 
   return (
     <div className="p-4 space-y-5 w-full">
+      {/* Profile Header */}
       <div className="flex justify-between items-center w-full">
         <div className="flex items-center space-x-2">
           <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
-            <Icon icon={User} size="lg" />
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt="Profile"
+                className="w-12 h-12 rounded-full object-cover"
+              />
+            ) : (
+              <Icon icon={User} size="lg" />
+            )}
           </div>
           <div className="flex flex-col">
             <Typography variant="title" className="font-semibold">
-              {session?.user?.user_metadata?.full_name || user.name}
+              {profile
+                ? `${profile.first_name} ${profile.last_name}`
+                : session?.user?.user_metadata?.full_name || user.name}
             </Typography>
             <Typography variant="caption" color="muted">
-              {session?.user?.email || user.email}
+              {profile?.email || session?.user?.email || user.email}
             </Typography>
+            {profile?.role && (
+              <Typography
+                variant="caption"
+                color="muted"
+                className="capitalize"
+              >
+                {profile.role}
+              </Typography>
+            )}
           </div>
         </div>
-        <TokenStatus 
-          tokenExpiresAt={tokenExpiry}
-          onRefreshToken={refreshToken}
-          isAuthenticated={isAuthenticated}
-        />
+        <div className="flex flex-col items-end space-y-2">
+          {/* <div className="flex items-center space-x-2"> */}
+            <TokenStatus
+              tokenExpiresAt={tokenExpiry}
+              onRefreshToken={refreshToken}
+              isAuthenticated={isAuthenticated}
+            />
+            {/* <Button
+              variant="ghost"
+              size="sm"
+              onClick={refreshProfile}
+              disabled={isLoading}
+              className="flex items-center space-x-1"
+            >
+              <Icon
+                icon={RefreshCw}
+                size="sm"
+                className={isLoading ? "animate-spin" : ""}
+              />
+              <Typography variant="caption">Refresh</Typography>
+            </Button> */}
+          {/* </div> */}
+        </div>
       </div>
+
+      {/* Loading State */}
+      {isLoading && (
+        <Panel variant="default" size="default" className="text-center py-4">
+          <Typography variant="caption" color="muted">
+            Loading profile...
+          </Typography>
+        </Panel>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Panel variant="danger" size="default" className="text-center py-4">
+          <Typography variant="caption" color="destructive">
+            Error: {error}
+          </Typography>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchProfile}
+            className="mt-2"
+          >
+            Retry
+          </Button>
+        </Panel>
+      )}
+
+      {/* Profile Details */}
+      {profile && (
+        <div>
+          <Typography variant="heading" color="muted" className="mb-2">
+            PROFILE DETAILS
+          </Typography>
+          <Panel variant="default" size="default" className="space-y-3">
+            <div className="flex justify-between">
+              <Typography variant="caption" color="muted">
+                First Name
+              </Typography>
+              <Typography variant="caption">{profile.first_name}</Typography>
+            </div>
+            <div className="flex justify-between">
+              <Typography variant="caption" color="muted">
+                Last Name
+              </Typography>
+              <Typography variant="caption">{profile.last_name}</Typography>
+            </div>
+            <div className="flex justify-between">
+              <Typography variant="caption" color="muted">
+                Email
+              </Typography>
+              <Typography variant="caption">{profile.email}</Typography>
+            </div>
+            <div className="flex justify-between">
+              <Typography variant="caption" color="muted">
+                Role
+              </Typography>
+              <Typography variant="caption" className="capitalize">
+                {profile.role}
+              </Typography>
+            </div>
+            {profile.created_at && (
+              <div className="flex justify-between">
+                <Typography variant="caption" color="muted">
+                  Member Since
+                </Typography>
+                <Typography variant="caption">
+                  {new Date(profile.created_at).toLocaleDateString()}
+                </Typography>
+              </div>
+            )}
+          </Panel>
+        </div>
+      )}
+
+      {/* Cache Information */}
+      {/* <CacheInfo /> */}
 
       <div>
         <Typography variant="heading" color="muted" className="mb-2">

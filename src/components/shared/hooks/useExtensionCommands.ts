@@ -21,8 +21,8 @@ export const useExtensionCommands = () => {
 
     togglePanelVisibility: () =>
       sendCommand({ type: "COMMAND.PANEL.TOGGLE_VISIBILITY" }),
-    toggleExtension: () =>
-      sendCommand({ type: "COMMAND.EXTENSION.TOGGLE_ENABLED" }),
+    // toggleExtension: () =>
+    //   sendCommand({ type: "COMMAND.EXTENSION.TOGGLE_ENABLED" }),
 
     refreshToken: () => sendCommand({ type: "COMMAND.AUTH.REFRESH_TOKEN" }),
     clearHistory: () => sendCommand({ type: "COMMAND.SESSION.CLEAR_HISTORY" }),

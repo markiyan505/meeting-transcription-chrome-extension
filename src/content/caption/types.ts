@@ -10,6 +10,7 @@ import type {
   ExportFormat,
   ExportOptions,
   OperationResult,
+  AttendeeEvent,
 } from "../../types/session";
 
 export type {
@@ -44,16 +45,32 @@ export interface CaptionEvent {
   timestamp: string;
 }
 
-
 export interface CaptionAdapter {
   initialize(): Promise<OperationResult>;
-  hydrate(data: SessionData): void;
+  // hydrate(data: SessionData): void;
 
   isCaptionsEnabled(): Promise<boolean>;
   isInMeeting(): Promise<boolean>;
 
   enableCaptions(): Promise<OperationResult>;
   disableCaptions(): Promise<OperationResult>;
+
+  emitRecordingStarted(): void;
+  emitRecordingStopped(): void;
+  emitRecordingPaused(): void;
+  emitRecordingResumed(): void;
+  emitRecordingHardStopped(): void;
+
+  emitCaptionAdded(caption: CaptionEntry): void;
+  emitCaptionUpdated(caption: CaptionEntry): void;
+  emitChatMessageAdded(msg: ChatMessage): void;
+  emitAttendeesUpdated(events: AttendeeEvent[]): void;
+  emitTitleChanged(newTitle: string): void;
+
+  emitMeetingStarted(): void;
+  emitMeetingEnded(): void;
+
+  emitError(error: string): void;
 
   startRecording(): Promise<OperationResult>;
   stopRecording(): Promise<OperationResult>;
@@ -67,6 +84,12 @@ export interface CaptionAdapter {
 
   clearData(): Promise<OperationResult>;
   cleanup(): Promise<OperationResult>;
+
+  // protected setupCaptionObserver(): void;
+  // protected setupChatObserver(): void;
+  // protected setupAttendeeObserver(): void;
+  // cleanupPlatformObservers(): void;
+  // setupPlatformObservers(): void;
 
   on(event: string, callback: (data: any) => void): void;
   off(event: string, callback: (data: any) => void): void;

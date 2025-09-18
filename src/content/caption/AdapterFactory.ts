@@ -7,14 +7,13 @@ import { CaptionAdapter, GoogleMeetConfig, TeamsConfig } from "./types";
 import { TranscriptonicAdapter } from "./adapters/TranscriptonicAdapter";
 import { LiveCaptionsAdapter } from "./adapters/LiveCaptionsAdapter";
 import { googleMeetConfig, teamsConfig } from "./config";
-
-export type PlatformType = "google-meet" | "teams" | "unknown";
+import { PlatformType } from "@/types/session";
 
 export interface AdapterFactoryConfig {
-  autoEnableCaptions?: boolean;
-  autoSaveOnEnd?: boolean;
-  trackAttendees?: boolean;
-  operationMode?: "manual" | "automatic";
+  // autoEnableCaptions?: boolean;
+  // autoSaveOnEnd?: boolean;
+  // trackAttendees?: boolean;
+  // operationMode?: "manual" | "automatic";
 }
 
 export class AdapterFactory {
@@ -43,6 +42,8 @@ export class AdapterFactory {
       hostname.includes("teams.live.com")
     ) {
       return "teams";
+    } else if (hostname.includes("localhost")) {
+      return "localhost";
     }
     return "unknown";
   }
@@ -79,6 +80,12 @@ export class AdapterFactory {
         };
         return new LiveCaptionsAdapter(teamsConfigInstance);
 
+      case "localhost":
+        // For localhost, we don't need a caption adapter - just return null
+        // The auth-bridge will handle authentication
+        console.log("Localhost detected - no caption adapter needed");
+        return null;
+
       default:
         console.warn(`Unsupported platform: ${platform}`);
         return null;
@@ -95,19 +102,19 @@ export class AdapterFactory {
     return this.createAdapter(platform, config);
   }
 
-  /**
-   * Gets the current adapter
-   */
-  getCurrentAdapter(): CaptionAdapter | null {
-    return this.currentAdapter;
-  }
+  // /**
+  //  * Gets the current adapter
+  //  */
+  // getCurrentAdapter(): CaptionAdapter | null {
+  //   return this.currentAdapter;
+  // }
 
-  /**
-   * Sets the current adapter
-   */
-  setCurrentAdapter(adapter: CaptionAdapter | null): void {
-    this.currentAdapter = adapter;
-  }
+  // /**
+  //  * Sets the current adapter
+  //  */
+  // setCurrentAdapter(adapter: CaptionAdapter | null): void {
+  //   this.currentAdapter = adapter;
+  // }
 
   /**
    * Cleans up the current adapter
@@ -123,15 +130,15 @@ export class AdapterFactory {
    * Checks if the current platform is supported
    */
   isPlatformSupported(platform: PlatformType): boolean {
-    return ["google-meet", "teams"].includes(platform);
+    return ["google-meet", "teams", "localhost"].includes(platform);
   }
 
-  /**
-   * Gets the list of supported platforms
-   */
-  getSupportedPlatforms(): PlatformType[] {
-    return ["google-meet", "teams"];
-  }
+  // /**
+  //  * Gets the list of supported platforms
+  //  */
+  // getSupportedPlatforms(): PlatformType[] {
+  //   return ["google-meet", "teams"];
+  // }
 
   /**
    * Gets the information about the platform
@@ -150,6 +157,11 @@ export class AdapterFactory {
       teams: {
         name: "Microsoft Teams",
         description: "Microsoft Teams collaboration platform",
+        supported: true,
+      },
+      localhost: {
+        name: "Local Development",
+        description: "Local development environment",
         supported: true,
       },
       unknown: {

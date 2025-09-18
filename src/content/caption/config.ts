@@ -64,11 +64,21 @@ export const teamsConfig = {
   autoOpenAttendees: true,
 
   selectors: {
+    // captionsContainer:
+    //   "[data-tid='closed-caption-v2-window-wrapper'], [data-tid='closed-captions-renderer'], [data-tid*='closed-caption']",
+    // captionMessage: ".fui-ChatMessageCompact",
+    // captionAuthor: '[data-tid="author"]',
+    // captionText: '[data-tid="closed-caption-text"]',
+
     captionsContainer:
-      "[data-tid='closed-caption-v2-window-wrapper'], [data-tid='closed-captions-renderer'], [data-tid*='closed-caption']",
-    captionMessage: ".fui-ChatMessageCompact",
-    captionAuthor: '[data-tid="author"]',
-    captionText: '[data-tid="closed-caption-text"]',
+      "[data-tid='closed-caption-v2-window-wrapper'], [data-tid='closed-captions-renderer'], [data-tid*='closed-caption'], [data-tid='closed-caption-v2-window'], [data-tid='closed-caption-v2-window-wrapper']",
+    captionMessage:
+      ".fui-ChatMessageCompact, [data-tid='closed-caption-v2-window'] > div, [data-tid='closed-caption-v2-window-wrapper'] > div",
+    captionAuthor:
+      '[data-tid="author"], [data-tid="closed-caption-author"], .fui-ChatMessageCompact [data-tid="author"]',
+    captionText:
+      '[data-tid="closed-caption-text"], [data-tid="closed-caption-v2-text"], .fui-ChatMessageCompact [data-tid="closed-caption-text"]',
+
     captionsButton: "div[id='closed-captions-button']",
     moreButton:
       "button[data-tid='more-button'], button[id='callingButtons-showMoreBtn']",

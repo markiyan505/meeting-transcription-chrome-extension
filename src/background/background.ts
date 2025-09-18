@@ -4,9 +4,10 @@ import { callMessageHandler } from "./messageHandlers";
 import type { MessageHandlerMap } from "./messageHandlers";
 
 import { SessionManager } from "./modules/SessionManager";
-import { SettingsManager } from "./modules/SettingsManager";
-import { ExportManager } from "./modules/ExportManager";
+// import { SettingsManager } from "./modules/SettingsManager";
+// import { ExportManager } from "./modules/ExportManager";
 import { AuthManager } from "./modules/AuthManager";
+import { DatabaseManager } from "./modules/DatabaseManager";
 import { requiresAuth, requiresActiveExtension } from "./messageHandlers";
 
 import type { ChromeMessage } from "@/types/messages";
@@ -110,41 +111,41 @@ const messageHandlers: MessageHandlerMap = {
     sendResponse(backup);
   },
 
-  "COMMAND.EXTENSION.TOGGLE_ENABLED": async (msg, tabId) => {
-    const isEnabled = await SettingsManager.toggleExtensionState();
-    stateService.updateTabSessionState(
-      tabId,
-      { isExtensionEnabled: isEnabled },
-      true
-    );
-  },
+  // "COMMAND.EXTENSION.TOGGLE_ENABLED": async (msg, tabId) => {
+  //   const isEnabled = await SettingsManager.toggleExtensionState();
+  //   stateService.updateTabSessionState(
+  //     tabId,
+  //     { isExtensionEnabled: isEnabled },
+  //     true
+  //   );
+  // },
 
-  "COMMAND.SETTINGS.UPDATE": async (msg, tabId) => {
-    const settingsMsg = msg as Extract<
-      ChromeMessage,
-      { type: "COMMAND.SETTINGS.UPDATE" }
-    >;
-    if (settingsMsg.payload) {
-      await SettingsManager.updateSettings(settingsMsg.payload.settings);
-    }
-    // TODO: Повідомити всіх про оновлення налаштувань
-  },
+  // "COMMAND.SETTINGS.UPDATE": async (msg, tabId) => {
+  //   const settingsMsg = msg as Extract<
+  //     ChromeMessage,
+  //     { type: "COMMAND.SETTINGS.UPDATE" }
+  //   >;
+  //   if (settingsMsg.payload) {
+  //     await SettingsManager.updateSettings(settingsMsg.payload.settings);
+  //   }
+  //   // TODO: Повідомити всіх про оновлення налаштувань
+  // },
 
-  "COMMAND.SESSION.EXPORT": requiresAuth(async (msg, tabId, sendResponse) => {
-    const exportMsg = msg as Extract<
-      ChromeMessage,
-      { type: "COMMAND.SESSION.EXPORT" }
-    >;
-    if (exportMsg.payload) {
-      const result = await ExportManager.exportSessionData(
-        exportMsg.payload.sessionId,
-        exportMsg.payload.format
-      );
-      sendResponse({ success: true, filename: result });
-    } else {
-      sendResponse({ success: false, error: "Missing payload" });
-    }
-  }),
+  // "COMMAND.SESSION.EXPORT": requiresAuth(async (msg, tabId, sendResponse) => {
+  //   const exportMsg = msg as Extract<
+  //     ChromeMessage,
+  //     { type: "COMMAND.SESSION.EXPORT" }
+  //   >;
+  //   if (exportMsg.payload) {
+  //     const result = await ExportManager.exportSessionData(
+  //       exportMsg.payload.sessionId,
+  //       exportMsg.payload.format
+  //     );
+  //     sendResponse({ success: true, filename: result });
+  //   } else {
+  //     sendResponse({ success: false, error: "Missing payload" });
+  //   }
+  // }),
 
   "QUERY.AUTH.GET_STATUS": async (msg, tabId, sendResponse) => {
     const [session, isAuthenticated, tokenExpiry, user] = await Promise.all([
@@ -174,7 +175,106 @@ const messageHandlers: MessageHandlerMap = {
 
   "COMMAND.AUTH.REFRESH_TOKEN": (msg, tabId) => AuthManager.refreshToken(),
 
-  "COMMAND.AUTH.CLEAR_SESSION": (msg, tabId) => AuthManager.clearSession(),
+  "COMMAND.AUTH.CLEAR_SESSION": async (msg, tabId) => {
+    console.log("[BACKGROUND] Clearing session for tab:", tabId);
+    try {
+      await AuthManager.clearSession();
+      await DatabaseManager.clearProfileCache();
+      console.log(
+        "[BACKGROUND] Session and profile cache cleared successfully"
+      );
+    } catch (error) {
+      console.error("[BACKGROUND] Session clear failed:", error);
+    }
+  },
+
+  // User Profile handlers
+  "QUERY.USER.GET_PROFILE": async (msg, tabId, sendResponse) => {
+    console.log("[BACKGROUND] Getting user profile for tab:", tabId);
+    try {
+      const profile = await DatabaseManager.getUserProfile();
+      const response = {
+        success: true,
+        profile,
+      };
+      console.log("[BACKGROUND] User profile response:", {
+        hasProfile: !!profile,
+        email: profile?.email,
+        name: profile ? `${profile.first_name} ${profile.last_name}` : null,
+      });
+      sendResponse(response);
+    } catch (error) {
+      console.error("[BACKGROUND] Error getting user profile:", error);
+      sendResponse({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+
+  "QUERY.USER.GET_CACHED_PROFILE": async (msg, tabId, sendResponse) => {
+    console.log("[BACKGROUND] Getting cached user profile for tab:", tabId);
+    try {
+      const profile = await DatabaseManager.getCachedProfile();
+      const response = {
+        success: true,
+        profile,
+      };
+      console.log("[BACKGROUND] Cached user profile response:", {
+        hasProfile: !!profile,
+        email: profile?.email,
+      });
+      sendResponse(response);
+    } catch (error) {
+      console.error("[BACKGROUND] Error getting cached user profile:", error);
+      sendResponse({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+
+  "COMMAND.USER.REFRESH_PROFILE": async (msg, tabId) => {
+    console.log("[BACKGROUND] Refreshing user profile for tab:", tabId);
+    try {
+      const profile = await DatabaseManager.refreshProfile();
+      console.log("[BACKGROUND] User profile refresh completed:", {
+        hasProfile: !!profile,
+        email: profile?.email,
+      });
+    } catch (error) {
+      console.error("[BACKGROUND] User profile refresh failed:", error);
+    }
+  },
+
+  "QUERY.USER.GET_CACHE_INFO": async (msg, tabId, sendResponse) => {
+    console.log("[BACKGROUND] Getting cache info for tab:", tabId);
+    try {
+      const cacheInfo = await DatabaseManager.getCacheInfo();
+      const response = {
+        success: true,
+        cacheInfo,
+      };
+      console.log("[BACKGROUND] Cache info response:", cacheInfo);
+      sendResponse(response);
+    } catch (error) {
+      console.error("[BACKGROUND] Error getting cache info:", error);
+      sendResponse({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+
+  "COMMAND.USER.CLEAR_CACHE": async (msg, tabId) => {
+    console.log("[BACKGROUND] Force clearing cache for tab:", tabId);
+    try {
+      await DatabaseManager.clearProfileCache();
+      console.log("[BACKGROUND] Cache cleared successfully");
+    } catch (error) {
+      console.error("[BACKGROUND] Cache clear failed:", error);
+    }
+  },
 };
 
 chrome.runtime.onMessage.addListener(
@@ -232,3 +332,5 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     AuthManager.refreshToken();
   }
 });
+
+

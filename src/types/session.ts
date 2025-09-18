@@ -1,8 +1,18 @@
-
 export type ExportFormat = "json" | "txt" | "srt" | "vtt" | "csv";
-export type PlatformType = "google-meet" | "teams" | "unknown";
-export type ErrorType = "unknown_error" | "not_authorized" | "incorrect_language" | "subtitles_disabled" | undefined;
-export type StateType = "idle" | "starting" | "resuming" | "recording" | "paused" | "error";
+export type PlatformType = "google-meet" | "teams" | "localhost" | "unknown";
+export type ErrorType =
+  | "unknown_error"
+  | "not_authorized"
+  | "incorrect_language"
+  | "subtitles_disabled"
+  | undefined;
+export type StateType =
+  | "idle"
+  | "starting"
+  | "resuming"
+  | "recording"
+  | "paused"
+  | "error";
 
 export type ActiveSessionsBackup = {
   [tabId: number]: SessionData;
@@ -31,7 +41,6 @@ export interface AttendeeEvent {
   action: AttendeeEventType;
   time: string;
 }
-
 
 export interface MeetingInfo {
   title: string;
@@ -111,7 +120,6 @@ export const sessionDataDefault: SessionData = {
   meetingInfo: meetingInfoDefault,
   recordTimings: recordTimingsDefault,
 };
-
 
 export interface ExportOptions {
   format: ExportFormat;

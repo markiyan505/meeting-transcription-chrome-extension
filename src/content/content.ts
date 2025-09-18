@@ -4,10 +4,7 @@ console.log("Content script loaded successfully");
 import { CONTROL_PANEL } from "./types/types";
 import { createFloatPanel } from "./panels/panelFactory";
 import { setupWindowMessageHandler } from "./panels/messaging";
-import {
-  handleChromeMessages,
-  cleanupCaptionModule,
-} from "./captionIntegration";
+import { cleanupCaptionModule } from "./captionIntegration";
 
 import { initializeCaptionModuleOnload } from "./captionIntegration";
 

@@ -10,7 +10,7 @@ import {
   logCaptionEvent,
   handleCaptionError,
 } from "./caption/index";
-import type { SessionData, SessionState } from "@/types/session";
+import type { MeetingInfo, SessionData, SessionState } from "@/types/session";
 import { CaptionAdapter } from "./caption/types";
 import { showCaptionNotification } from "./uiNotifier";
 
@@ -26,22 +26,26 @@ import type {
 export function initializeCaptionModuleOnload(): void {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log("[CONTENT SCRIPT OUTSIDE] Received message:", message.type);
+
+    if (!chrome.runtime?.id) {
+      console.error(
+        "[CONTENT SCRIPT] Extension context invalidated, cannot handle message"
+      );
+      sendResponse({ success: false, error: "Extension context invalidated" });
+      return false;
+    }
+
     handleChromeMessages(message, sender, sendResponse);
-    // return true; // Indicate that we will send a response asynchronously
+    return true;
   });
 
   console.log("[Content] Script is ready, reporting to background.");
   chrome.runtime.sendMessage({ type: "EVENT.CONTENT.INITIALIZE" });
 }
 
-export function initializeContentScript(): void {
-  console.log("[Content] Script is ready, reporting to background.");
-  chrome.runtime.sendMessage({ type: "EVENT.CONTENT.INITIALIZE" });
-}
-
 let captionAdapter: CaptionAdapter | null = null;
 let isCaptionModuleInitialized = false;
-let isExtensionCurrentlyEnabled = false;
+// let isExtensionCurrentlyEnabled = false;
 
 const BATCH_INTERVAL_MS = 2000;
 
@@ -98,6 +102,7 @@ function addToBuffer(payload: UpsertSessionDataCommand["payload"]) {
 }
 
 async function flushBuffer() {
+  console.log("[CONTENT SCRIPT] Flushing buffer, dataBuffer:", dataBuffer);
   if (isBufferEmpty(dataBuffer)) {
     return;
   }
@@ -123,21 +128,17 @@ async function flushBuffer() {
   }
 }
 
-export async function cleanupCaptionModule() {
-  if (captionAdapter) {
-    await captionAdapter.cleanup();
-    captionAdapter = null;
-  }
-  isCaptionModuleInitialized = false;
-  logCaptionEvent("cleanup_completed", {});
-}
-
 function startStreaming() {
+  console.log("[CONTENT SCRIPT] Starting streaming");
   if (streamingInterval) return;
-  streamingInterval = setInterval(flushBuffer, BATCH_INTERVAL_MS);
+  streamingInterval = setInterval(() => {
+    console.log("[CONTENT SCRIPT] Flushing buffer");
+    flushBuffer();
+  }, BATCH_INTERVAL_MS);
 }
 
 function stopStreaming() {
+  console.log("[CONTENT SCRIPT] Stopping streaming");
   if (streamingInterval) {
     clearInterval(streamingInterval);
     streamingInterval = null;
@@ -149,37 +150,28 @@ function stopStreaming() {
  * Fully disables the caption module (used when isExtensionEnabled = false)
  */
 
-async function disableCaptionModule(): Promise<void> {
+export async function cleanupCaptionModule() {
   if (captionAdapter) {
     await captionAdapter.cleanup();
     captionAdapter = null;
   }
-  updatePanelVisibility(false);
-  await cleanupCaptionModule();
+  isCaptionModuleInitialized = false;
+  logCaptionEvent("cleanup_completed", {});
 }
+
+// async function disableCaptionModule(): Promise<void> {
+//   await cleanupCaptionModule();
+//   updatePanelVisibility(false);
+// }
 
 /**
  * Reinitializes the caption module after it has been disabled
  */
-export async function reinitializeCaptionModule() {
-  console.log("[CONTENT SCRIPT] reinitializeCaptionModule called");
-  await cleanupCaptionModule();
-  await initializeCaptionModule();
-}
-
-/**
- * Toggles the visibility of the float panel DOM element.
- */
-function togglePanelVisibility(newVisibility: boolean) {
-  const panel = document.getElementById(
-    "chrome-extension-float-panel-container"
-  );
-  if (panel) {
-    panel.style.display = newVisibility ? "block" : "none";
-  } else {
-    console.warn("[CONTENT SCRIPT] Panel not found for toggle");
-  }
-}
+// export async function reinitializeCaptionModule() {
+//   console.log("[CONTENT SCRIPT] reinitializeCaptionModule called");
+//   await cleanupCaptionModule();
+//   await initializeCaptionModule();
+// }
 
 /**
  * Updates the visibility of the panel, used for meeting start/end.
@@ -196,14 +188,18 @@ function updatePanelVisibility(shouldBeVisible: boolean) {
 export async function initializeCaptionModule() {
   console.log("[CONTENT SCRIPT] initializeCaptionModule:");
 
-  if (isCaptionModuleInitialized && captionAdapter) {
-    console.log(
-      "[CONTENT SCRIPT] Caption module already initialized, skipping"
-    );
-    return;
-  }
+  // if (isCaptionModuleInitialized && captionAdapter) {
+  //   console.log(
+  //     "[CONTENT SCRIPT] Caption module already initialized, skipping"
+  //   );
+  //   return;
+  // }
 
   try {
+    if (!chrome.runtime?.id) {
+      console.error("[CONTENT SCRIPT] Extension context invalidated");
+      return;
+    }
     const isSupported = isCurrentPlatformSupported();
     const platformInfo = getCurrentPlatformInfo();
     chrome.runtime.sendMessage({
@@ -213,6 +209,18 @@ export async function initializeCaptionModule() {
 
     if (!isSupported) {
       console.warn("Platform not supported.");
+      return;
+    }
+
+    if (platformInfo.name === "Local Development") {
+      console.log(
+        "[CONTENT SCRIPT] Localhost detected - skipping caption adapter initialization"
+      );
+      isCaptionModuleInitialized = true;
+      showCaptionNotification(
+        "Local development mode - authentication only",
+        "info"
+      );
       return;
     }
 
@@ -249,12 +257,12 @@ export async function initializeCaptionModuleInPausedState() {
     "[CONTENT SCRIPT] initializeCaptionModuleInPausedState with recovered data"
   );
 
-  if (isCaptionModuleInitialized && captionAdapter) {
-    console.log(
-      "[CONTENT SCRIPT] Caption module already initialized, skipping recovery"
-    );
-    return;
-  }
+  // if (isCaptionModuleInitialized && captionAdapter) {
+  //   console.log(
+  //     "[CONTENT SCRIPT] Caption module already initialized, skipping recovery"
+  //   );
+  //   return;
+  // }
 
   try {
     const isSupported = isCurrentPlatformSupported();
@@ -269,12 +277,27 @@ export async function initializeCaptionModuleInPausedState() {
       return;
     }
 
+    // For localhost, we don't need a caption adapter - just handle auth
+    if (platformInfo.name === "Local Development") {
+      console.log(
+        "[CONTENT SCRIPT] Localhost detected - skipping caption adapter recovery"
+      );
+      isCaptionModuleInitialized = true;
+      showCaptionNotification(
+        "Local development mode - authentication only",
+        "info"
+      );
+      return;
+    }
+
     captionAdapter = await createCaptionAdapterForCurrentPlatform({
       autoEnableCaptions: true,
       autoSaveOnEnd: true,
       trackAttendees: true,
       operationMode: "automatic",
     });
+
+    console.log("[CONTENT SCRIPT] captionAdapter:", captionAdapter);
 
     isCaptionModuleInitialized = true;
 
@@ -382,34 +405,39 @@ export async function handleChromeMessages(
     console.log("[CONTENT SCRIPT] Received message:", message.type);
     switch (message.type) {
       case "COMMAND.CONTENT.ENABLE":
-        if (message.payload.isEnabled) {
-          await initializeCaptionModule();
-        } else {
-          disableCaptionModule();
-        }
+        // if (message.payload.isEnabled) {
+        await initializeCaptionModule();
+        result = { success: true, message: "Caption module initialized" };
+        // } else {
+        //   disableCaptionModule();
+        // }
         break;
 
-      case "COMMAND.CONTENT.RECOVER_FROM_BACKUP":
-        await initializeCaptionModuleInPausedState();
-        break;
+      // case "COMMAND.CONTENT.RECOVER_FROM_BACKUP":
+      //   await initializeCaptionModuleInPausedState();
+      //   break;
 
       case "COMMAND.PANEL.TOGGLE_ENABLED":
         console.log("[CONTENT SCRIPT] Toggling panel visibility");
-        togglePanelVisibility(true);
+        updatePanelVisibility(true);
+        result = { success: true, message: "Panel enabled" };
         break;
 
       case "COMMAND.PANEL.TOGGLE_DISABLED":
         console.log("[CONTENT SCRIPT] Toggling panel visibility");
-        togglePanelVisibility(false);
+        updatePanelVisibility(false);
+        result = { success: true, message: "Panel disabled" };
         break;
 
-      case "EVENT.CONTEXT_STATE_CHANGED":
-        console.log(
-          "[CONTENT SCRIPT] Received state change:",
-          message.payload.newState
-        );
-        applyState(message.payload.newState);
-        break;
+      // case "EVENT.CONTEXT_STATE_CHANGED":
+      //   console.log(
+      //     "[CONTENT SCRIPT] Received state change:",
+      //     message.payload.newState
+      //   );
+      //   applyState(message.payload.newState);
+      //   break;
+      default:
+        result = { success: false, error: "Unknown command" };
     }
 
     if (captionAdapter) {
@@ -417,7 +445,6 @@ export async function handleChromeMessages(
         case "COMMAND.RECORDING.START":
           handleStartRecording();
           break;
-
         case "COMMAND.RECORDING.STOP":
           result = await captionAdapter.stopRecording();
           break;
@@ -439,15 +466,22 @@ export async function handleChromeMessages(
     //   result = await captionAdapter.disableCaptions();
     //   break;
   } catch (error) {
+    console.error("[CONTENT SCRIPT] Error handling message:", error);
     sendResponse({
       success: false,
       error: error instanceof Error ? error.message : String(error),
     });
+    return;
   }
 
   // Always send a response for successful cases
   if (result !== undefined) {
     sendResponse(result);
+  } else {
+    sendResponse({
+      success: false,
+      error: "Unknown command",
+    });
   }
 }
 
@@ -505,27 +539,30 @@ function setupCaptionEventHandlers() {
     );
   });
 
-  captionAdapter.on("caption_added", (caption: CaptionEntry) =>
-    addToBuffer({ captions: [caption] })
-  );
-  captionAdapter.on("caption_updated", (caption: CaptionEntry) =>
-    addToBuffer({ captions: [caption] })
-  );
-  captionAdapter.on("chat_message_added", (msg: ChatMessage) =>
-    addToBuffer({ chatMessages: [msg] })
-  );
-  captionAdapter.on("attendees_updated", (events: AttendeeEvent[]) =>
-    addToBuffer({ attendeeEvents: events })
-  );
-  captionAdapter.on("title_changed", (newTitle: string) =>
-    addToBuffer({ meetingInfo: { title: newTitle } })
-  );
+  captionAdapter.on("caption_added", (caption: CaptionEntry) => {
+    console.log("[CONTENT SCRIPT] caption_added", caption);
+    addToBuffer({ captions: [caption] });
+  });
+  captionAdapter.on("caption_updated", (caption: CaptionEntry) => {
+    console.log("[CONTENT SCRIPT] caption_updated", caption);
+    addToBuffer({ captions: [caption] });
+  });
+  captionAdapter.on("chat_message_added", (msg: ChatMessage) => {
+    console.log("[CONTENT SCRIPT] chat_message_added", msg);
+    addToBuffer({ chatMessages: [msg] });
+  });
+  captionAdapter.on("attendees_updated", (events: AttendeeEvent[]) => {
+    console.log("[CONTENT SCRIPT] attendees_updated", events);
+    addToBuffer({ attendeeEvents: events });
+  });
+  captionAdapter.on("title_changed", (newTitle: string) => {
+    console.log("[CONTENT SCRIPT] title_changed", newTitle);
+    addToBuffer({ meetingInfo: { title: newTitle } });
+  });
 
-  captionAdapter.on("recording_started", (data: any) => {
-    logCaptionEvent("recording_started", data);
-    showCaptionNotification("Recording started", "info");
-
-    startStreaming();
+  captionAdapter.on("meeting_info_changed", (newMeetingInfo: MeetingInfo) => {
+    console.log("[CONTENT SCRIPT] meeting_info_changed", newMeetingInfo);
+    addToBuffer({ meetingInfo: newMeetingInfo });
   });
 
   // captionAdapter.on("captions_enabled", (data: any) => {
@@ -537,6 +574,13 @@ function setupCaptionEventHandlers() {
   //   logCaptionEvent("captions_disabled", data);
   //   showCaptionNotification("Captions disabled", "warning");
   // });
+
+  captionAdapter.on("recording_started", (data: any) => {
+    logCaptionEvent("recording_started", data);
+    showCaptionNotification("Recording started", "info");
+
+    startStreaming();
+  });
 
   captionAdapter.on("recording_hard_stopped", (data: any) => {
     logCaptionEvent("recording_hard_stopped", data);
@@ -555,7 +599,7 @@ function setupCaptionEventHandlers() {
 
     stopStreaming();
 
-    saveCaptionDataToBackground(data);
+    // saveCaptionDataToBackground(data);
   });
 
   captionAdapter.on("recording_paused", (data: any) => {
@@ -572,29 +616,29 @@ function setupCaptionEventHandlers() {
     startStreaming();
   });
 
-  function saveCaptionDataToBackground(data: any) {
-    logCaptionEvent("recording_stopped", {});
-    if (!captionAdapter) return;
-    // TODO додати якусь обробку може ше
-    const sessionData = {
-      id: "",
-      timestamp: new Date().toISOString(),
-      url: window.location.href,
-      title: document.title,
-      captions: captionAdapter.getCaptions(),
-      chatMessages: captionAdapter.getChatMessages(),
-      meetingInfo: captionAdapter.getMeetingInfo(),
-      // attendeeReport: captionAdapter.getAttendeeReport(),
-    };
+  // function saveCaptionDataToBackground(data: any) {
+  //   logCaptionEvent("recording_stopped", {});
+  //   if (!captionAdapter) return;
+  //   // TODO додати якусь обробку може ше
+  //   const sessionData = {
+  //     id: "",
+  //     timestamp: new Date().toISOString(),
+  //     url: window.location.href,
+  //     title: document.title,
+  //     captions: captionAdapter.getCaptions(),
+  //     chatMessages: captionAdapter.getChatMessages(),
+  //     meetingInfo: captionAdapter.getMeetingInfo(),
+  //     // attendeeReport: captionAdapter.getAttendeeReport(),
+  //   };
 
-    const message: SaveSessionDataCommand = {
-      type: "COMMAND.SESSION.SAVE",
-      payload: {
-        tabId: -1,
-        data: sessionData as any,
-      },
-    };
-    chrome.runtime.sendMessage(message);
-    showCaptionNotification("Recording saved.", "success");
-  }
+  //   const message: SaveSessionDataCommand = {
+  //     type: "COMMAND.SESSION.SAVE",
+  //     payload: {
+  //       tabId: -1,
+  //       data: sessionData as any,
+  //     },
+  //   };
+  //   chrome.runtime.sendMessage(message);
+  //   showCaptionNotification("Recording saved.", "success");
+  // }
 }

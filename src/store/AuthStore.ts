@@ -64,3 +64,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   _syncState: (newState) => set((state) => ({ ...state, ...newState })),
 }));
+
+// Слухач повідомлень для автоматичного оновлення стану
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "EVENT.AUTH.STATE_CHANGED") {
+    console.log("[AUTH] Received auth state change event:", message.payload);
+
+    const { hasSession, session } = message.payload;
+
+    if (hasSession && session) {
+      useAuthStore.getState()._setSession(session);
+    } else {
+      useAuthStore.getState().clearSession();
+    }
+  }
+});
